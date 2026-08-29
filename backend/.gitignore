@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# TypeScript build output
+dist/
+
+# Environment files & secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage / IDE cache
+coverage/
+.DS_Store
