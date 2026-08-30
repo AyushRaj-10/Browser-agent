@@ -5,6 +5,7 @@ import type {
   AskAIResult,
   ExtensionMessage,
   PageAnalysis,
+  UserProtectedFieldIds,
 } from "../shared/messages";
 
 // TODO: point this at whatever the backend branch exposes once merged
@@ -27,7 +28,7 @@ async function getActiveTabId(): Promise<number> {
     currentWindow: true,
   });
 
-  if (!tab?.id) {
+  if (tab?.id === undefined) {
     throw new Error("No active tab found");
   }
 
@@ -59,37 +60,57 @@ async function analyzeActivePage(): Promise<{
 /**
  * Builds the payload that is allowed to leave the browser.
  *
- * Sensitive fields are reduced to structural information only and never
- * include their raw value.
+ * A field is effectively protected when:
+ *
+ *   1. It was automatically classified as sensitive, OR
+ *   2. The user explicitly chose to protect it.
+ *
+ * Automatic protection can only be strengthened by the user.
+ * It cannot be disabled through user protection preferences.
  *
  * This is currently the extension-side fallback enforcement point.
- * During integration, the dedicated privacy component should become the
- * authoritative privacy/redaction layer.
+ * During integration, the dedicated privacy component should become
+ * the authoritative privacy/redaction layer.
  */
-function buildSanitizedPayload(task: string, analysis: PageAnalysis) {
-  const sanitizedFields = analysis.fields.map((field) =>
-    field.sensitive
-      ? {
-          id: field.id,
-          type: field.type,
-          label: field.label,
-          sensitive: true,
-        }
-      : {
-          id: field.id,
-          type: field.type,
-          label: field.label,
-          sensitive: false,
-          sampleValue: field.sampleValue,
-        }
-  );
+function buildSanitizedPayload(
+  task: string,
+  analysis: PageAnalysis,
+  userProtectedFieldIds: UserProtectedFieldIds
+) {
+  const userProtectedSet = new Set(userProtectedFieldIds);
+
+  const sanitizedFields = analysis.fields.map((field) => {
+    const effectivelyProtected =
+      field.sensitive || userProtectedSet.has(field.id);
+
+    if (effectivelyProtected) {
+      return {
+        id: field.id,
+        type: field.type,
+        label: field.label,
+        sensitive: true,
+      };
+    }
+
+    return {
+      id: field.id,
+      type: field.type,
+      label: field.label,
+      sensitive: false,
+      sampleValue: field.sampleValue,
+    };
+  });
 
   const sensitiveItemsProtected = analysis.fields.filter(
-    (field) => field.sensitive
+    (field) =>
+      field.sensitive || userProtectedSet.has(field.id)
   ).length;
 
-  // Raw values belonging to fields classified as sensitive are never
+  // Raw values belonging to effectively protected fields are never
   // included in the outgoing payload.
+  //
+  // This remains zero because the extension never sends raw values
+  // for anything it considers protected.
   const rawItemsSent = 0;
 
   return {
@@ -104,7 +125,10 @@ function buildSanitizedPayload(task: string, analysis: PageAnalysis) {
   };
 }
 
-async function handleAskAI(task: string): Promise<AskAIResult> {
+async function handleAskAI(
+  task: string,
+  userProtectedFieldIds: UserProtectedFieldIds = []
+): Promise<AskAIResult> {
   try {
     const { tabId, analysis } = await analyzeActivePage();
 
@@ -112,7 +136,11 @@ async function handleAskAI(task: string): Promise<AskAIResult> {
       payload,
       sensitiveItemsProtected,
       rawItemsSent,
-    } = buildSanitizedPayload(task, analysis);
+    } = buildSanitizedPayload(
+      task,
+      analysis,
+      userProtectedFieldIds
+    );
 
     let serverInstruction: string | null = null;
 
@@ -140,6 +168,7 @@ async function handleAskAI(task: string): Promise<AskAIResult> {
       sensitiveItemsProtected,
       rawItemsSent,
       analysis,
+      userProtectedFieldIds,
       serverInstruction,
     };
 
@@ -158,6 +187,7 @@ async function handleAskAI(task: string): Promise<AskAIResult> {
       sensitiveItemsProtected: 0,
       rawItemsSent: 0,
       analysis: null,
+      userProtectedFieldIds,
       serverInstruction: null,
       error:
         error instanceof Error
@@ -174,7 +204,11 @@ browser.runtime.onMessage.addListener(
   (message: ExtensionMessage) => {
     if (message.type === "ASK_AI") {
       const request = message as AskAIRequest;
-      return handleAskAI(request.task);
+
+      return handleAskAI(
+        request.task,
+        request.userProtectedFieldIds ?? []
+      );
     }
 
     return undefined;

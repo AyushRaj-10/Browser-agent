@@ -744,3 +744,185 @@ body {
 
   color: #98a2b3;
 }
+
+/* =========================
+   MANUAL PRIVACY CONTROLS
+   ========================= */
+
+.app__protection-notice {
+  padding: 9px 11px;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+
+  background: #f5f7ff;
+
+  border: 1px solid #dfe3ff;
+  border-radius: 9px;
+
+  color: #475467;
+}
+
+.app__protection-notice > span {
+  flex-shrink: 0;
+
+  margin-top: 1px;
+
+  color: #6366f1;
+
+  font-size: 9px;
+}
+
+.app__protection-notice p {
+  margin: 0;
+
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* Container used for the locked badge + tooltip. */
+.app__protection-badge-wrapper {
+  position: relative;
+
+  flex-shrink: 0;
+}
+
+/* Automatically protected fields. */
+.app__sensitive--locked {
+  cursor: help;
+}
+
+/* Small information symbol inside the locked badge. */
+.app__info-icon {
+  margin-left: 1px;
+
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Tooltip explaining why automatic protection is locked. */
+.app__privacy-tooltip {
+  position: absolute;
+  z-index: 20;
+
+  top: calc(100% + 7px);
+  right: 0;
+
+  width: 205px;
+
+  padding: 9px 10px;
+
+  visibility: hidden;
+  opacity: 0;
+
+  background: #101828;
+  color: #ffffff;
+
+  border-radius: 7px;
+
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.45;
+
+  text-transform: none;
+  letter-spacing: normal;
+
+  pointer-events: none;
+
+  transform: translateY(-3px);
+
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+}
+
+/* Small tooltip arrow. */
+.app__privacy-tooltip::before {
+  content: "";
+
+  position: absolute;
+
+  top: -4px;
+  right: 15px;
+
+  width: 8px;
+  height: 8px;
+
+  background: #101828;
+
+  transform: rotate(45deg);
+}
+
+/* Show with mouse hover. */
+.app__protection-badge-wrapper:hover
+  .app__privacy-tooltip {
+  visibility: visible;
+  opacity: 1;
+
+  transform: translateY(0);
+}
+
+/* Also show with keyboard focus. */
+.app__protection-badge-wrapper:focus-within
+  .app__privacy-tooltip {
+  visibility: visible;
+  opacity: 1;
+
+  transform: translateY(0);
+}
+
+/* User-protected badge + Undo button. */
+.app__manual-protection {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  flex-shrink: 0;
+}
+
+.app__sensitive--manual {
+  background: #eef4ff;
+  color: #3538cd;
+}
+
+/* Protect / Undo controls. */
+.app__protection-action {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #344054;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.app__protection-action:hover {
+  background: #f9fafb;
+  border-color: #98a2b3;
+}
+
+.app__protection-action:focus-visible {
+  outline: none;
+
+  border-color: #7f8cff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.app__protection-action--undo {
+  color: #667085;
+}

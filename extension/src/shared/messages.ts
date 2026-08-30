@@ -1,4 +1,5 @@
 // Message contract shared across background / content / popup.
+
 // Keep this in sync with the backend and privacy components during integration.
 
 export type FieldType =
@@ -56,8 +57,13 @@ export interface AnalyzedField {
   // Screen position for DOM ↔ vision alignment.
   bbox: BoundingBox;
 
-  // Temporary privacy metadata.
-  // The dedicated privacy component can replace/extend this later.
+  // Automatic privacy classification produced locally.
+  //
+  // If true, the field is automatically protected and the user
+  // must not be allowed to disable that protection.
+  //
+  // The dedicated privacy component can replace/extend this
+  // classification during integration.
   sensitive: boolean;
 
   // Never contains the raw value of a field marked sensitive.
@@ -71,9 +77,20 @@ export interface PageAnalysis {
   analyzedAt: number;
 }
 
+// Additional fields that the user explicitly wants protected.
+//
+// These IDs supplement automatic protection. They never override it.
+export type UserProtectedFieldIds = string[];
+
 export interface AskAIRequest {
   type: "ASK_AI";
   task: string;
+
+  // Optional user-selected protection preferences for this page.
+  //
+  // Automatic sensitive fields remain protected regardless of
+  // whether their IDs appear here.
+  userProtectedFieldIds?: UserProtectedFieldIds;
 }
 
 export interface AnalyzePageRequest {
@@ -88,16 +105,24 @@ export interface AnalyzePageResponse {
 export interface AskAIResult {
   type: "ASK_AI_RESULT";
 
+  // Total number of effectively protected fields:
+  // automatic protection + additional user protection.
   sensitiveItemsProtected: number;
+
   rawItemsSent: number;
 
   // DOM analysis generated locally by the extension.
   // Used by the popup to visualize what the browser agent detected.
   analysis: PageAnalysis | null;
 
+  // User-selected protection state that was applied to this request.
+  userProtectedFieldIds: UserProtectedFieldIds;
+
   serverInstruction: string | null;
+
   error?: string;
 }
+
 export type ExtensionMessage =
   | AskAIRequest
   | AnalyzePageRequest

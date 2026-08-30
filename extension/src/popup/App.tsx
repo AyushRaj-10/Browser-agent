@@ -4,6 +4,7 @@ import type {
   AnalyzedField,
   AskAIRequest,
   AskAIResult,
+  UserProtectedFieldIds,
 } from "../shared/messages";
 
 type ElementFilter = "all" | "protected" | "unprotected";
@@ -26,8 +27,15 @@ export default function App() {
   const [task, setTask] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AskAIResult | null>(null);
+
   const [elementFilter, setElementFilter] =
     useState<ElementFilter>("protected");
+
+  const [userProtectedFieldIds, setUserProtectedFieldIds] =
+    useState<UserProtectedFieldIds>([]);
+
+  const [protectionChanged, setProtectionChanged] =
+    useState(false);
 
   // Restore the analysis belonging to the currently active tab.
   useEffect(() => {
@@ -48,14 +56,48 @@ export default function App() {
 
         if (last) {
           setResult(last);
+          setUserProtectedFieldIds(
+            last.userProtectedFieldIds ?? []
+          );
         }
       } catch {
         setResult(null);
+        setUserProtectedFieldIds([]);
       }
     }
 
     void restoreResult();
   }, []);
+
+  function isUserProtected(field: AnalyzedField): boolean {
+    return userProtectedFieldIds.includes(field.id);
+  }
+
+  function isEffectivelyProtected(
+    field: AnalyzedField
+  ): boolean {
+    return field.sensitive || isUserProtected(field);
+  }
+
+  function protectField(fieldId: string) {
+    setUserProtectedFieldIds((current) => {
+      if (current.includes(fieldId)) {
+        return current;
+      }
+
+      return [...current, fieldId];
+    });
+
+    setProtectionChanged(true);
+  }
+
+  function undoUserProtection(fieldId: string) {
+    setUserProtectedFieldIds((current) =>
+      current.filter((id) => id !== fieldId)
+    );
+
+    setProtectionChanged(true);
+  }
 
   async function handleAskAI() {
     if (!task.trim() || loading) {
@@ -68,6 +110,7 @@ export default function App() {
       const request: AskAIRequest = {
         type: "ASK_AI",
         task: task.trim(),
+        userProtectedFieldIds,
       };
 
       const response = (await browser.runtime.sendMessage(
@@ -76,7 +119,14 @@ export default function App() {
 
       setResult(response);
 
-      // A fresh analysis starts by showing all detected elements.
+      // Use the exact protection state accepted by the background.
+      setUserProtectedFieldIds(
+        response.userProtectedFieldIds ?? []
+      );
+
+      setProtectionChanged(false);
+
+      // Privacy-first default view.
       setElementFilter("protected");
     } finally {
       setLoading(false);
@@ -85,19 +135,23 @@ export default function App() {
 
   const fields = result?.analysis?.fields ?? [];
 
-  const protectedCount = fields.filter(
-    (field) => field.sensitive
+  const protectedCount = fields.filter((field) =>
+    isEffectivelyProtected(field)
   ).length;
 
-  const unprotectedCount = fields.length - protectedCount;
+  const unprotectedCount =
+    fields.length - protectedCount;
 
   const filteredFields = fields.filter((field) => {
+    const protectedField =
+      isEffectivelyProtected(field);
+
     if (elementFilter === "protected") {
-      return field.sensitive;
+      return protectedField;
     }
 
     if (elementFilter === "unprotected") {
-      return !field.sensitive;
+      return !protectedField;
     }
 
     return true;
@@ -140,7 +194,9 @@ export default function App() {
           id="task-input"
           placeholder="e.g. Analyze this form and identify the fields"
           value={task}
-          onChange={(e) => setTask(e.target.value)}
+          onChange={(event) =>
+            setTask(event.target.value)
+          }
           rows={3}
         />
 
@@ -194,9 +250,7 @@ export default function App() {
 
           <div className="app__stat app__stat--protected">
             <dd>
-              {result
-                ? result.sensitiveItemsProtected
-                : "—"}
+              {result ? protectedCount : "—"}
             </dd>
             <dt>Protected</dt>
           </div>
@@ -222,6 +276,17 @@ export default function App() {
             <span className="app__page-count">
               {fields.length} elements
             </span>
+          </div>
+        )}
+
+        {protectionChanged && (
+          <div className="app__protection-notice">
+            <span aria-hidden="true">◆</span>
+
+            <p>
+              Protection preferences changed. They will
+              apply to your next agent request.
+            </p>
           </div>
         )}
 
@@ -267,66 +332,130 @@ export default function App() {
 
             {filteredFields.length > 0 ? (
               <div className="app__element-list">
-                {filteredFields.map((field) => (
-                  <article
-                    className={`app__element ${
-                      field.sensitive
-                        ? "app__element--sensitive"
-                        : ""
-                    }`}
-                    key={field.id}
-                  >
-                    <div className="app__element-heading">
-                      <strong>
-                        {getElementTitle(field)}
-                      </strong>
+                {filteredFields.map((field) => {
+                  const userProtected =
+                    isUserProtected(field);
 
-                      {field.sensitive && (
-                        <span className="app__sensitive">
-                          <span aria-hidden="true">●</span>
-                          Protected
+                  const protectedField =
+                    isEffectivelyProtected(field);
+
+                  return (
+                    <article
+                      className={`app__element ${
+                        protectedField
+                          ? "app__element--sensitive"
+                          : ""
+                      }`}
+                      key={field.id}
+                    >
+                      <div className="app__element-heading">
+                        <strong>
+                          {getElementTitle(field)}
+                        </strong>
+
+                        {field.sensitive ? (
+                          <div className="app__protection-badge-wrapper">
+                            <span
+                              className="app__sensitive app__sensitive--locked"
+                              tabIndex={0}
+                              aria-label="Automatically protected sensitive field"
+                              onMouseDown={(event) => event.preventDefault()}
+                            >
+                              <span aria-hidden="true">
+                                🔒
+                              </span>
+                              Auto-protected
+                              <span
+                                className="app__info-icon"
+                                aria-hidden="true"
+                              >
+                                ⓘ
+                              </span>
+                            </span>
+
+                            <div
+                              className="app__privacy-tooltip"
+                              role="tooltip"
+                            >
+                              This field was automatically
+                              identified as sensitive.
+                              Protection cannot be disabled.
+                            </div>
+                          </div>
+                        ) : userProtected ? (
+                          <div className="app__manual-protection">
+                            <span className="app__sensitive app__sensitive--manual">
+                              <span aria-hidden="true">
+                                ◆
+                              </span>
+                              Protected by you
+                            </span>
+
+                            <button
+                              type="button"
+                              className="app__protection-action app__protection-action--undo"
+                              onClick={() =>
+                                undoUserProtection(field.id)
+                              }
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="app__protection-action"
+                            onClick={() =>
+                              protectField(field.id)
+                            }
+                          >
+                            Protect
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="app__element-meta">
+                        <span>{field.tag}</span>
+                        <span>{field.type}</span>
+
+                        {field.role && (
+                          <span>
+                            role: {field.role}
+                          </span>
+                        )}
+
+                        {field.required && (
+                          <span>required</span>
+                        )}
+
+                        {field.disabled && (
+                          <span>disabled</span>
+                        )}
+
+                        {field.checked !== null && (
+                          <span>
+                            {field.checked
+                              ? "checked"
+                              : "unchecked"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="app__element-position">
+                        <span>POSITION</span>
+                        {field.bbox.x}, {field.bbox.y}
+
+                        <span className="app__position-divider">
+                          •
                         </span>
-                      )}
-                    </div>
 
-                    <div className="app__element-meta">
-                      <span>{field.tag}</span>
-                      <span>{field.type}</span>
-
-                      {field.role && (
-                        <span>role: {field.role}</span>
-                      )}
-
-                      {field.required && (
-                        <span>required</span>
-                      )}
-
-                      {field.disabled && (
-                        <span>disabled</span>
-                      )}
-
-                      {field.checked !== null && (
-                        <span>
-                          {field.checked
-                            ? "checked"
-                            : "unchecked"}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="app__element-position">
-                      <span>POSITION</span>
-                      {field.bbox.x}, {field.bbox.y}
-
-                      <span className="app__position-divider">
-                        •
-                      </span>
-
-                      <span>SIZE</span>
-                      {field.bbox.width} × {field.bbox.height}
-                    </div>
-                  </article>
-                ))}
+                        <span>SIZE</span>
+                        {field.bbox.width} ×{" "}
+                        {field.bbox.height}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="app__filter-empty">
