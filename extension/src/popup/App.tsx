@@ -101,12 +101,12 @@ export default function App() {
           {loading ? (
             <>
               <span className="app__spinner" />
-              Analyzing page…
+              Processing…
             </>
           ) : (
             <>
               <span aria-hidden="true">✦</span>
-              Analyze Page
+              Ask Agent
             </>
           )}
         </button>
