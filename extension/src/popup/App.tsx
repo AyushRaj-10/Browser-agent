@@ -6,7 +6,11 @@ import type {
   AskAIResult,
 } from "../shared/messages";
 
-const STORAGE_KEY = "browserAgent.lastResult";
+type ElementFilter = "all" | "protected" | "unprotected";
+
+function getStorageKey(tabId: number): string {
+  return `browserAgent.lastResult.${tabId}`;
+}
 
 function getElementTitle(field: AnalyzedField): string {
   return (
@@ -22,19 +26,41 @@ export default function App() {
   const [task, setTask] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AskAIResult | null>(null);
+  const [elementFilter, setElementFilter] =
+    useState<ElementFilter>("protected");
 
+  // Restore the analysis belonging to the currently active tab.
   useEffect(() => {
-    browser.storage.local.get(STORAGE_KEY).then((stored) => {
-      const last = stored[STORAGE_KEY] as AskAIResult | undefined;
+    async function restoreResult() {
+      try {
+        const [tab] = await browser.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
 
-      if (last) {
-        setResult(last);
+        if (tab?.id === undefined) {
+          return;
+        }
+
+        const storageKey = getStorageKey(tab.id);
+        const stored = await browser.storage.local.get(storageKey);
+        const last = stored[storageKey] as AskAIResult | undefined;
+
+        if (last) {
+          setResult(last);
+        }
+      } catch {
+        setResult(null);
       }
-    });
+    }
+
+    void restoreResult();
   }, []);
 
   async function handleAskAI() {
-    if (!task.trim() || loading) return;
+    if (!task.trim() || loading) {
+      return;
+    }
 
     setLoading(true);
 
@@ -49,13 +75,37 @@ export default function App() {
       )) as AskAIResult;
 
       setResult(response);
+
+      // A fresh analysis starts by showing all detected elements.
+      setElementFilter("protected");
     } finally {
       setLoading(false);
     }
   }
 
   const fields = result?.analysis?.fields ?? [];
-  const analysisSuccessful = Boolean(result?.analysis && !result?.error);
+
+  const protectedCount = fields.filter(
+    (field) => field.sensitive
+  ).length;
+
+  const unprotectedCount = fields.length - protectedCount;
+
+  const filteredFields = fields.filter((field) => {
+    if (elementFilter === "protected") {
+      return field.sensitive;
+    }
+
+    if (elementFilter === "unprotected") {
+      return !field.sensitive;
+    }
+
+    return true;
+  });
+
+  const analysisSuccessful = Boolean(
+    result?.analysis && !result?.error
+  );
 
   return (
     <main className="app">
@@ -179,69 +229,110 @@ export default function App() {
           <div className="app__elements">
             <div className="app__section-heading">
               <h2>Page Perception</h2>
-              <span>{fields.length} detected</span>
+
+              <span>
+                {elementFilter === "all"
+                  ? `${fields.length} detected`
+                  : `${filteredFields.length} of ${fields.length} shown`}
+              </span>
             </div>
 
-            <div className="app__element-list">
-              {fields.map((field) => (
-                <article
-                  className={`app__element ${
-                    field.sensitive
-                      ? "app__element--sensitive"
-                      : ""
-                  }`}
-                  key={field.id}
-                >
-                  <div className="app__element-heading">
-                    <strong>
-                      {getElementTitle(field)}
-                    </strong>
+            <div className="app__filter">
+              <label htmlFor="element-filter">
+                Show
+              </label>
 
-                    {field.sensitive && (
-                      <span className="app__sensitive">
-                        <span aria-hidden="true">●</span>
-                        Protected
-                      </span>
-                    )}
-                  </div>
+              <select
+                id="element-filter"
+                value={elementFilter}
+                onChange={(event) =>
+                  setElementFilter(
+                    event.target.value as ElementFilter
+                  )
+                }
+              >
+                <option value="all">
+                  All elements ({fields.length})
+                </option>
 
-                  <div className="app__element-meta">
-                    <span>{field.tag}</span>
-                    <span>{field.type}</span>
+                <option value="protected">
+                  Protected ({protectedCount})
+                </option>
 
-                    {field.role && (
-                      <span>role: {field.role}</span>
-                    )}
-
-                    {field.required && (
-                      <span>required</span>
-                    )}
-
-                    {field.disabled && (
-                      <span>disabled</span>
-                    )}
-
-                    {field.checked !== null && (
-                      <span>
-                        {field.checked
-                          ? "checked"
-                          : "unchecked"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="app__element-position">
-                    <span>POSITION</span>
-                    {field.bbox.x}, {field.bbox.y}
-                    <span className="app__position-divider">
-                      •
-                    </span>
-                    <span>SIZE</span>
-                    {field.bbox.width} × {field.bbox.height}
-                  </div>
-                </article>
-              ))}
+                <option value="unprotected">
+                  Unprotected ({unprotectedCount})
+                </option>
+              </select>
             </div>
+
+            {filteredFields.length > 0 ? (
+              <div className="app__element-list">
+                {filteredFields.map((field) => (
+                  <article
+                    className={`app__element ${
+                      field.sensitive
+                        ? "app__element--sensitive"
+                        : ""
+                    }`}
+                    key={field.id}
+                  >
+                    <div className="app__element-heading">
+                      <strong>
+                        {getElementTitle(field)}
+                      </strong>
+
+                      {field.sensitive && (
+                        <span className="app__sensitive">
+                          <span aria-hidden="true">●</span>
+                          Protected
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="app__element-meta">
+                      <span>{field.tag}</span>
+                      <span>{field.type}</span>
+
+                      {field.role && (
+                        <span>role: {field.role}</span>
+                      )}
+
+                      {field.required && (
+                        <span>required</span>
+                      )}
+
+                      {field.disabled && (
+                        <span>disabled</span>
+                      )}
+
+                      {field.checked !== null && (
+                        <span>
+                          {field.checked
+                            ? "checked"
+                            : "unchecked"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="app__element-position">
+                      <span>POSITION</span>
+                      {field.bbox.x}, {field.bbox.y}
+
+                      <span className="app__position-divider">
+                        •
+                      </span>
+
+                      <span>SIZE</span>
+                      {field.bbox.width} × {field.bbox.height}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="app__filter-empty">
+                No elements match this filter.
+              </div>
+            )}
           </div>
         )}
 

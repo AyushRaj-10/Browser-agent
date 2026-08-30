@@ -11,36 +11,86 @@ import type {
 // (see the `backend` branch / Person handling Server Side Integration).
 const BACKEND_URL = "http://localhost:8787/api/agent/task";
 
-const STORAGE_KEY = "browserAgent.lastResult";
+/**
+ * Store analysis separately for each browser tab.
+ *
+ * This allows analysis to survive popup close/reopen while preventing
+ * results from one tab from appearing in another tab.
+ */
+function getStorageKey(tabId: number): string {
+  return `browserAgent.lastResult.${tabId}`;
+}
 
 async function getActiveTabId(): Promise<number> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) throw new Error("No active tab found");
+  const [tab] = await browser.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  if (!tab?.id) {
+    throw new Error("No active tab found");
+  }
+
   return tab.id;
 }
 
-async function analyzeActivePage(): Promise<PageAnalysis> {
+/**
+ * Ask the content script running in the active tab to analyze the page.
+ *
+ * The tab ID is returned alongside the analysis so that the result can
+ * be associated with the exact tab that produced it.
+ */
+async function analyzeActivePage(): Promise<{
+  tabId: number;
+  analysis: PageAnalysis;
+}> {
   const tabId = await getActiveTabId();
+
   const response = (await browser.tabs.sendMessage(tabId, {
     type: "ANALYZE_PAGE",
   })) as AnalyzePageResponse;
-  return response.analysis;
+
+  return {
+    tabId,
+    analysis: response.analysis,
+  };
 }
 
 /**
- * Builds the payload that is allowed to leave the browser: sensitive fields
- * are reduced to {sensitive: true, type, label} with no value at all.
- * This is the enforcement point for "only anonymized data is transmitted".
+ * Builds the payload that is allowed to leave the browser.
+ *
+ * Sensitive fields are reduced to structural information only and never
+ * include their raw value.
+ *
+ * This is currently the extension-side fallback enforcement point.
+ * During integration, the dedicated privacy component should become the
+ * authoritative privacy/redaction layer.
  */
 function buildSanitizedPayload(task: string, analysis: PageAnalysis) {
-  const sanitizedFields = analysis.fields.map((f) =>
-    f.sensitive
-      ? { id: f.id, type: f.type, label: f.label, sensitive: true }
-      : { id: f.id, type: f.type, label: f.label, sensitive: false, sampleValue: f.sampleValue }
+  const sanitizedFields = analysis.fields.map((field) =>
+    field.sensitive
+      ? {
+          id: field.id,
+          type: field.type,
+          label: field.label,
+          sensitive: true,
+        }
+      : {
+          id: field.id,
+          type: field.type,
+          label: field.label,
+          sensitive: false,
+          sampleValue: field.sampleValue,
+        }
   );
 
-  const sensitiveItemsProtected = analysis.fields.filter((f) => f.sensitive).length;
-  const rawItemsSent = 0; // raw values for sensitive fields are never included, by construction
+  const sensitiveItemsProtected = analysis.fields.filter(
+    (field) => field.sensitive
+  ).length;
+
+  // Raw values belonging to fields classified as sensitive are never
+  // included in the outgoing payload.
+  const rawItemsSent = 0;
 
   return {
     payload: {
@@ -56,55 +106,96 @@ function buildSanitizedPayload(task: string, analysis: PageAnalysis) {
 
 async function handleAskAI(task: string): Promise<AskAIResult> {
   try {
-    const analysis = await analyzeActivePage();
-    const { payload, sensitiveItemsProtected, rawItemsSent } = buildSanitizedPayload(task, analysis);
+    const { tabId, analysis } = await analyzeActivePage();
+
+    const {
+      payload,
+      sensitiveItemsProtected,
+      rawItemsSent,
+    } = buildSanitizedPayload(task, analysis);
 
     let serverInstruction: string | null = null;
+
     try {
-      const res = await fetch(BACKEND_URL, {
+      const response = await fetch(BACKEND_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        const data = await res.json();
+
+      if (response.ok) {
+        const data = await response.json();
         serverInstruction = data?.instruction ?? null;
       }
     } catch {
-      // Backend not up yet during solo dev — this is expected until integration.
+      // Backend may not be running during standalone extension development.
+      // This is expected until full team integration.
       serverInstruction = null;
     }
 
     const result: AskAIResult = {
-  type: "ASK_AI_RESULT",
-  sensitiveItemsProtected,
-  rawItemsSent,
-  analysis,
-  serverInstruction,
-};
+      type: "ASK_AI_RESULT",
+      sensitiveItemsProtected,
+      rawItemsSent,
+      analysis,
+      serverInstruction,
+    };
 
-    await browser.storage.local.set({ [STORAGE_KEY]: result });
+    // Persist the result for this tab so closing/reopening the popup does
+    // not immediately discard the analysis.
+    await browser.storage.local.set({
+      [getStorageKey(tabId)]: result,
+    });
+
     return result;
-  } catch (err) {
-const result: AskAIResult = {
-  type: "ASK_AI_RESULT",
-  sensitiveItemsProtected: 0,
-  rawItemsSent: 0,
-  analysis: null,
-  serverInstruction: null,
-  error: err instanceof Error ? err.message : "Unknown error",
-};
-    await browser.storage.local.set({ [STORAGE_KEY]: result });
+  } catch (error) {
+    // Error results are returned to the popup but intentionally not
+    // persisted. Reopening the popup therefore starts clean after a failure.
+    const result: AskAIResult = {
+      type: "ASK_AI_RESULT",
+      sensitiveItemsProtected: 0,
+      rawItemsSent: 0,
+      analysis: null,
+      serverInstruction: null,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
+
     return result;
   }
 }
 
-// webextension-polyfill normalizes messaging to be promise-based: return
-// the response directly instead of chrome's raw sendResponse callback.
-browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
-  if (message.type === "ASK_AI") {
-    const req = message as AskAIRequest;
-    return handleAskAI(req.task);
+// webextension-polyfill normalizes messaging to be promise-based.
+browser.runtime.onMessage.addListener(
+  (message: ExtensionMessage) => {
+    if (message.type === "ASK_AI") {
+      const request = message as AskAIRequest;
+      return handleAskAI(request.task);
+    }
+
+    return undefined;
   }
-  return undefined;
+);
+
+/**
+ * A reload or navigation creates a new document in the tab.
+ *
+ * Remove only that tab's cached analysis so stale results from the
+ * previous document are never displayed.
+ */
+browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading") {
+    void browser.storage.local.remove(getStorageKey(tabId));
+  }
+});
+
+/**
+ * Remove cached data when a tab is permanently closed.
+ */
+browser.tabs.onRemoved.addListener((tabId) => {
+  void browser.storage.local.remove(getStorageKey(tabId));
 });

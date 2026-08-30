@@ -674,3 +674,73 @@ body {
 .app::-webkit-scrollbar-thumb:hover {
   background: #98a2b3;
 }
+
+/* =========================
+   PERCEPTION FILTER
+   ========================= */
+
+.app__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 8px 10px;
+
+  background: #ffffff;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 9px;
+}
+
+.app__filter label {
+  flex-shrink: 0;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
+  color: #667085;
+}
+
+.app__filter select {
+  min-width: 0;
+  flex: 1;
+
+  padding: 6px 28px 6px 8px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+
+  color: #344054;
+  background: #f9fafb;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+
+  outline: none;
+  cursor: pointer;
+}
+
+.app__filter select:focus {
+  border-color: #7f8cff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.app__filter-empty {
+  padding: 18px 12px;
+
+  background: #ffffff;
+
+  border: 1px dashed #d0d5dd;
+  border-radius: 9px;
+
+  font-size: 10px;
+  line-height: 1.4;
+
+  text-align: center;
+
+  color: #98a2b3;
+}
