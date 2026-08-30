@@ -61,9 +61,6 @@ export interface AnalyzedField {
   //
   // If true, the field is automatically protected and the user
   // must not be allowed to disable that protection.
-  //
-  // The dedicated privacy component can replace/extend this
-  // classification during integration.
   sensitive: boolean;
 
   // Never contains the raw value of a field marked sensitive.
@@ -102,6 +99,15 @@ export interface AnalyzePageResponse {
   analysis: PageAnalysis;
 }
 
+export interface HighlightElementRequest {
+  type: "HIGHLIGHT_ELEMENT";
+  elementId: string;
+}
+
+export interface ClearHighlightRequest {
+  type: "CLEAR_HIGHLIGHT";
+}
+
 export interface AskAIResult {
   type: "ASK_AI_RESULT";
 
@@ -127,4 +133,6 @@ export type ExtensionMessage =
   | AskAIRequest
   | AnalyzePageRequest
   | AnalyzePageResponse
+  | HighlightElementRequest
+  | ClearHighlightRequest
   | AskAIResult;

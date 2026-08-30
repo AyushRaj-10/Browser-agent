@@ -36,6 +36,21 @@ async function getActiveTabId(): Promise<number> {
 }
 
 /**
+ * Forwards a popup message to the content script running in
+ * the currently active tab.
+ *
+ * Highlighting is performed by the content script because it has
+ * direct access to the webpage DOM.
+ */
+async function forwardToActiveTab(
+  message: ExtensionMessage
+): Promise<void> {
+  const tabId = await getActiveTabId();
+
+  await browser.tabs.sendMessage(tabId, message);
+}
+
+/**
  * Ask the content script running in the active tab to analyze the page.
  *
  * The tab ID is returned alongside the analysis so that the result can
@@ -209,6 +224,18 @@ browser.runtime.onMessage.addListener(
         request.task,
         request.userProtectedFieldIds ?? []
       );
+    }
+
+    /**
+     * The popup cannot directly access the webpage DOM.
+     * Forward highlight commands to the active tab's content script.
+     */
+    if (message.type === "HIGHLIGHT_ELEMENT") {
+      return forwardToActiveTab(message);
+    }
+
+    if (message.type === "CLEAR_HIGHLIGHT") {
+      return forwardToActiveTab(message);
     }
 
     return undefined;

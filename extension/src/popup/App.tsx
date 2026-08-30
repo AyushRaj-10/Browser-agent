@@ -51,8 +51,12 @@ export default function App() {
         }
 
         const storageKey = getStorageKey(tab.id);
-        const stored = await browser.storage.local.get(storageKey);
-        const last = stored[storageKey] as AskAIResult | undefined;
+        const stored =
+          await browser.storage.local.get(storageKey);
+
+        const last = stored[storageKey] as
+          | AskAIResult
+          | undefined;
 
         if (last) {
           setResult(last);
@@ -69,7 +73,9 @@ export default function App() {
     void restoreResult();
   }, []);
 
-  function isUserProtected(field: AnalyzedField): boolean {
+  function isUserProtected(
+    field: AnalyzedField
+  ): boolean {
     return userProtectedFieldIds.includes(field.id);
   }
 
@@ -97,6 +103,34 @@ export default function App() {
     );
 
     setProtectionChanged(true);
+  }
+
+  /**
+   * Ask the content script, through the background worker,
+   * to highlight the webpage element represented by this card.
+   *
+   * Highlight failures are intentionally ignored because this is
+   * visual assistance and should never break the popup itself.
+   */
+  function highlightField(fieldId: string) {
+    void browser.runtime
+      .sendMessage({
+        type: "HIGHLIGHT_ELEMENT",
+        elementId: fieldId,
+      })
+      .catch(() => undefined);
+  }
+
+  /**
+   * Remove any browser-agent highlight currently visible
+   * on the webpage.
+   */
+  function clearHighlight() {
+    void browser.runtime
+      .sendMessage({
+        type: "CLEAR_HIGHLIGHT",
+      })
+      .catch(() => undefined);
   }
 
   async function handleAskAI() {
@@ -166,7 +200,10 @@ export default function App() {
       {/* Product header */}
       <header className="app__header">
         <div className="app__brand">
-          <div className="app__logo" aria-hidden="true">
+          <div
+            className="app__logo"
+            aria-hidden="true"
+          >
             ◈
           </div>
 
@@ -256,7 +293,9 @@ export default function App() {
           </div>
 
           <div className="app__stat app__stat--privacy">
-            <dd>{result ? result.rawItemsSent : "—"}</dd>
+            <dd>
+              {result ? result.rawItemsSent : "—"}
+            </dd>
             <dt>Raw PII sent</dt>
           </div>
         </dl>
@@ -347,6 +386,10 @@ export default function App() {
                           : ""
                       }`}
                       key={field.id}
+                      onMouseEnter={() =>
+                        highlightField(field.id)
+                      }
+                      onMouseLeave={clearHighlight}
                     >
                       <div className="app__element-heading">
                         <strong>
@@ -359,7 +402,9 @@ export default function App() {
                               className="app__sensitive app__sensitive--locked"
                               tabIndex={0}
                               aria-label="Automatically protected sensitive field"
-                              onMouseDown={(event) => event.preventDefault()}
+                              onMouseDown={(event) =>
+                                event.preventDefault()
+                              }
                             >
                               <span aria-hidden="true">
                                 🔒
@@ -395,7 +440,9 @@ export default function App() {
                               type="button"
                               className="app__protection-action app__protection-action--undo"
                               onClick={() =>
-                                undoUserProtection(field.id)
+                                undoUserProtection(
+                                  field.id
+                                )
                               }
                             >
                               Undo
@@ -473,7 +520,9 @@ export default function App() {
         )}
 
         <footer className="app__footer">
-          <span className="app__footer-shield">◆</span>
+          <span className="app__footer-shield">
+            ◆
+          </span>
           Sensitive data processed locally
         </footer>
       </section>

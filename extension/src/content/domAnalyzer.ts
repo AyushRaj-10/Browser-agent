@@ -4,7 +4,11 @@ import type {
   PageAnalysis,
 } from "../shared/messages";
 
-const SENSITIVE_INPUT_TYPES = new Set(["password", "email", "tel"]);
+const SENSITIVE_INPUT_TYPES = new Set([
+  "password",
+  "email",
+  "tel",
+]);
 
 const SENSITIVE_NAME_PATTERNS = [
   /pass(word)?/i,
@@ -26,9 +30,19 @@ type InteractiveElement =
   | HTMLAnchorElement;
 
 /**
- * Maps a DOM element to the simplified element type used by
- * the browser-agent pipeline.
+ * Maps analysis IDs to the exact DOM elements that produced them.
+ *
+ * The map is rebuilt whenever analyzeDom() runs, so generated IDs only
+ * need to remain stable for the lifetime of the current analysis.
  */
+const analyzedElements = new Map<string, InteractiveElement>();
+
+/**
+ * Temporary visual overlay used to show which webpage element
+ * corresponds to a Page Perception card in the extension popup.
+ */
+let highlightOverlay: HTMLDivElement | null = null;
+
 function mapElementType(el: InteractiveElement): FieldType {
   if (el instanceof HTMLTextAreaElement) return "textarea";
   if (el instanceof HTMLSelectElement) return "select";
@@ -76,27 +90,14 @@ function mapElementType(el: InteractiveElement): FieldType {
   return "other";
 }
 
-/**
- * Attempts to determine a useful human-readable label
- * for an interactive element.
- */
 function getCleanLabelText(
   label: Element,
-  control?: HTMLElement
 ): string | null {
   const clone = label.cloneNode(true) as HTMLElement;
 
-  // Remove the actual form control from the cloned label so its
-  // option/value text doesn't contaminate the human-readable label.
-  if (control) {
-    clone.querySelectorAll(
-      "input, textarea, select, button"
-    ).forEach((node) => node.remove());
-  } else {
-    clone.querySelectorAll(
-      "input, textarea, select, button"
-    ).forEach((node) => node.remove());
-  }
+  clone
+    .querySelectorAll("input, textarea, select, button")
+    .forEach((node) => node.remove());
 
   const text = clone.textContent
     ?.replace(/\s+/g, " ")
@@ -119,7 +120,10 @@ function findLabelText(el: HTMLElement): string | null {
   if (labelledBy) {
     const text = labelledBy
       .split(/\s+/)
-      .map((id) => document.getElementById(id)?.textContent?.trim())
+      .map(
+        (id) =>
+          document.getElementById(id)?.textContent?.trim()
+      )
       .filter(Boolean)
       .join(" ");
 
@@ -149,7 +153,7 @@ function findLabelText(el: HTMLElement): string | null {
   const parentLabel = el.closest("label");
 
   if (parentLabel) {
-    const text = getCleanLabelText(parentLabel, el);
+    const text = getCleanLabelText(parentLabel);
 
     if (text) {
       return text;
@@ -178,9 +182,6 @@ function findLabelText(el: HTMLElement): string | null {
   return null;
 }
 
-/**
- * Determines whether the element is currently visually rendered.
- */
 function isVisible(el: HTMLElement): boolean {
   const rect = el.getBoundingClientRect();
   const style = window.getComputedStyle(el);
@@ -194,9 +195,6 @@ function isVisible(el: HTMLElement): boolean {
   );
 }
 
-/**
- * Returns viewport-relative coordinates for DOM ↔ vision alignment.
- */
 function getBoundingBox(el: HTMLElement) {
   const rect = el.getBoundingClientRect();
 
@@ -208,12 +206,6 @@ function getBoundingBox(el: HTMLElement) {
   };
 }
 
-/**
- * Temporary lightweight privacy heuristic.
- *
- * Person 1 exposes structural DOM information. The dedicated privacy
- * component can replace or extend this during team integration.
- */
 function isLikelySensitive(
   el: InteractiveElement,
   label: string | null
@@ -241,10 +233,6 @@ function isLikelySensitive(
   );
 }
 
-/**
- * Returns a field value only when the element has NOT been
- * classified as sensitive.
- */
 function getSafeValue(
   el: InteractiveElement,
   sensitive: boolean
@@ -265,16 +253,74 @@ function getSafeValue(
 }
 
 /**
+ * Removes the current browser-agent highlight overlay.
+ */
+export function clearElementHighlight(): void {
+  highlightOverlay?.remove();
+  highlightOverlay = null;
+}
+
+/**
+ * Visually highlights the DOM element associated with an analysis ID.
+ *
+ * An overlay is used instead of mutating the target element's own CSS,
+ * so the extension does not overwrite the website's existing styles.
+ */
+export function highlightElement(elementId: string): void {
+  clearElementHighlight();
+
+  const element = analyzedElements.get(elementId);
+
+  if (!element || !element.isConnected) {
+    return;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  if (rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+
+  const overlay = document.createElement("div");
+
+  overlay.setAttribute(
+    "data-browser-agent-highlight",
+    "true"
+  );
+
+  Object.assign(overlay.style, {
+    position: "fixed",
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    boxSizing: "border-box",
+    border: "2px solid #6366f1",
+    borderRadius: "4px",
+    background: "rgba(99, 102, 241, 0.10)",
+    boxShadow: "0 0 0 2px rgba(99, 102, 241, 0.15)",
+    pointerEvents: "none",
+    zIndex: "2147483647",
+  });
+
+  document.documentElement.appendChild(overlay);
+  highlightOverlay = overlay;
+}
+
+/**
  * Scans the current webpage and converts interactive DOM elements
  * into structured information for the browser-agent pipeline.
  */
 export function analyzeDom(): PageAnalysis {
+  // A new analysis replaces the previous element registry.
+  clearElementHighlight();
+  analyzedElements.clear();
+
   const elements = Array.from(
     document.querySelectorAll<InteractiveElement>(
       "input, textarea, select, button, a[href]"
     )
   ).filter((el) => {
-    // Hidden inputs aren't useful for visual browser perception.
     if (
       el instanceof HTMLInputElement &&
       el.type.toLowerCase() === "hidden"
@@ -285,50 +331,69 @@ export function analyzeDom(): PageAnalysis {
     return true;
   });
 
-  const fields: AnalyzedField[] = elements.map((el, index) => {
-    const label = findLabelText(el);
-    const sensitive = isLikelySensitive(el, label);
-    const type = mapElementType(el);
+  const fields: AnalyzedField[] = elements.map(
+    (el, index) => {
+      const label = findLabelText(el);
+      const sensitive = isLikelySensitive(el, label);
+      const type = mapElementType(el);
 
-    let checked: boolean | null = null;
+      /*
+       * Use the page's existing ID when available.
+       * Otherwise generate an analysis-local identifier.
+       *
+       * The identifier does NOT need to be a CSS selector because
+       * analyzedElements stores the direct DOM reference.
+       */
+      const analysisId =
+        el.id || `agent-element-${index}`;
 
-    if (
-      el instanceof HTMLInputElement &&
-      (el.type === "checkbox" || el.type === "radio")
-    ) {
-      checked = el.checked;
+      analyzedElements.set(analysisId, el);
+
+      let checked: boolean | null = null;
+
+      if (
+        el instanceof HTMLInputElement &&
+        (el.type === "checkbox" ||
+          el.type === "radio")
+      ) {
+        checked = el.checked;
+      }
+
+      const text =
+        el instanceof HTMLButtonElement ||
+        el instanceof HTMLAnchorElement
+          ? el.textContent?.trim().slice(0, 100) || null
+          : null;
+
+      const required =
+        "required" in el
+          ? Boolean(el.required)
+          : false;
+
+      const disabled =
+        "disabled" in el
+          ? Boolean(el.disabled)
+          : false;
+
+      return {
+        id: analysisId,
+        tag: el.tagName.toLowerCase(),
+        role: el.getAttribute("role"),
+        name: el.getAttribute("name"),
+        label,
+        type,
+        text,
+        placeholder: el.getAttribute("placeholder"),
+        required,
+        disabled,
+        visible: isVisible(el),
+        checked,
+        bbox: getBoundingBox(el),
+        sensitive,
+        sampleValue: getSafeValue(el, sensitive),
+      };
     }
-
-    const text =
-      el instanceof HTMLButtonElement ||
-      el instanceof HTMLAnchorElement
-        ? el.textContent?.trim().slice(0, 100) || null
-        : null;
-
-    const required =
-      "required" in el ? Boolean(el.required) : false;
-
-    const disabled =
-      "disabled" in el ? Boolean(el.disabled) : false;
-
-    return {
-      id: el.id || `agent-element-${index}`,
-      tag: el.tagName.toLowerCase(),
-      role: el.getAttribute("role"),
-      name: el.getAttribute("name"),
-      label,
-      type,
-      text,
-      placeholder: el.getAttribute("placeholder"),
-      required,
-      disabled,
-      visible: isVisible(el),
-      checked,
-      bbox: getBoundingBox(el),
-      sensitive,
-      sampleValue: getSafeValue(el, sensitive),
-    };
-  });
+  );
 
   return {
     url: location.href,
