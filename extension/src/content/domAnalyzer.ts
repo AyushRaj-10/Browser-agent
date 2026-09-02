@@ -412,16 +412,26 @@ export function getAnalyzedElement(id: string): InteractiveElement | HTMLElement
     return fromMap;
   }
 
-  // Fallback direct DOM search
+  // Fallback direct DOM search by ID
   const byId = document.getElementById(id);
   if (byId) return byId;
+
+  // Fallback by ID selector
+  try {
+    const byIdSelector = document.querySelector<HTMLElement>(`#${id}`);
+    if (byIdSelector) return byIdSelector;
+  } catch {}
+
+  // Fallback by Name attribute
+  try {
+    const byName = document.querySelector<HTMLElement>(`[name="${id}"]`);
+    if (byName) return byName;
+  } catch {}
 
   try {
     const byQuery = document.querySelector<HTMLElement>(id);
     if (byQuery) return byQuery;
-  } catch {
-    // Not a valid CSS selector
-  }
+  } catch {}
 
   return null;
 }

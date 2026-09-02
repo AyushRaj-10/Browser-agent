@@ -8,6 +8,6 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   vlmProvider: (process.env.VLM_PROVIDER || 'mock').toLowerCase(),
   vlmApiKey: process.env.VLM_API_KEY || '',
-  vlmModel: process.env.VLM_MODEL || 'claude-3-5-sonnet-20241022',
+  vlmModel: process.env.VLM_MODEL || 'gemini-3.6-flash',
   vlmEndpoint: process.env.VLM_ENDPOINT || '',
 };
