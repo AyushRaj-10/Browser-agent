@@ -402,3 +402,26 @@ export function analyzeDom(): PageAnalysis {
     analyzedAt: Date.now(),
   };
 }
+
+/**
+ * Returns the live DOM element for a given analysis ID or CSS/ID selector.
+ */
+export function getAnalyzedElement(id: string): InteractiveElement | HTMLElement | null {
+  const fromMap = analyzedElements.get(id);
+  if (fromMap && fromMap.isConnected) {
+    return fromMap;
+  }
+
+  // Fallback direct DOM search
+  const byId = document.getElementById(id);
+  if (byId) return byId;
+
+  try {
+    const byQuery = document.querySelector<HTMLElement>(id);
+    if (byQuery) return byQuery;
+  } catch {
+    // Not a valid CSS selector
+  }
+
+  return null;
+}

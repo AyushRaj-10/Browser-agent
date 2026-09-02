@@ -1,0 +1,16 @@
+{
+  "name": "@browser-agent/evaluation",
+  "version": "1.0.0",
+  "description": "End-to-End Evaluation and Benchmark Suite for Privacy-Preserving Browser Agent",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "benchmark": "tsx run-benchmark.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.1"
+  }
+}

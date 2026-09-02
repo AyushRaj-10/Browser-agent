@@ -129,10 +129,27 @@ export interface AskAIResult {
   error?: string;
 }
 
+export interface ExecuteActionRequest {
+  type: "EXECUTE_ACTION";
+  action: "CLICK" | "SCROLL" | "TYPE" | "SELECT" | "WAIT";
+  target: string;
+  value?: string;
+}
+
+export interface ExecuteActionResponse {
+  type: "EXECUTE_ACTION_RESULT";
+  success: boolean;
+  action: string;
+  target: string;
+  error?: string;
+}
+
 export type ExtensionMessage =
   | AskAIRequest
   | AnalyzePageRequest
   | AnalyzePageResponse
   | HighlightElementRequest
   | ClearHighlightRequest
+  | ExecuteActionRequest
+  | ExecuteActionResponse
   | AskAIResult;

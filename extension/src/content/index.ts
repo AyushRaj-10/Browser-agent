@@ -6,8 +6,12 @@ import {
   highlightElement,
 } from "./domAnalyzer";
 
+import { executeDomAction } from "./executor";
+
 import type {
   AnalyzePageResponse,
+  ExecuteActionRequest,
+  ExecuteActionResponse,
   ExtensionMessage,
 } from "../shared/messages";
 
@@ -34,6 +38,21 @@ browser.runtime.onMessage.addListener(
     if (message.type === "CLEAR_HIGHLIGHT") {
       clearElementHighlight();
       return Promise.resolve();
+    }
+
+    if (message.type === "EXECUTE_ACTION") {
+      const execMsg = message as ExecuteActionRequest;
+      return executeDomAction({
+        action: execMsg.action,
+        target: execMsg.target,
+        value: execMsg.value,
+      }).then((result): ExecuteActionResponse => ({
+        type: "EXECUTE_ACTION_RESULT",
+        success: result.success,
+        action: result.action,
+        target: result.target,
+        error: result.error,
+      }));
     }
 
     return undefined;
