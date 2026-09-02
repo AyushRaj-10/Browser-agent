@@ -1,0 +1,928 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f8fc;
+  color: #101828;
+}
+
+.app {
+  width: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 20px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* =========================
+   HEADER
+   ========================= */
+
+.app__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app__logo {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 10px;
+
+  background: #111827;
+  color: #ffffff;
+
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.app__header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+
+  color: #101828;
+}
+
+.app__subtitle {
+  margin: 3px 0 0;
+
+  font-size: 11px;
+  line-height: 1.4;
+
+  color: #667085;
+}
+
+.app__local-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 5px 8px;
+
+  border: 1px solid #d1fadf;
+  border-radius: 999px;
+
+  background: #ecfdf3;
+  color: #027a48;
+
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.app__status-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+  background: #12b76a;
+}
+
+/* =========================
+   TASK INPUT
+   ========================= */
+
+.app__task {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app__task label {
+  font-size: 12px;
+  font-weight: 600;
+
+  color: #344054;
+}
+
+.app__task textarea {
+  width: 100%;
+  min-height: 82px;
+
+  padding: 11px 12px;
+
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+
+  color: #101828;
+  background: #ffffff;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+
+  outline: none;
+  resize: vertical;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.app__task textarea::placeholder {
+  color: #98a2b3;
+}
+
+.app__task textarea:focus {
+  border-color: #7f8cff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.app__task button {
+  width: 100%;
+
+  padding: 11px 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  border: none;
+  border-radius: 9px;
+
+  background: #111827;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 650;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.app__task button:hover:not(:disabled) {
+  background: #253044;
+}
+
+.app__task button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.app__task button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* =========================
+   LOADING
+   ========================= */
+
+.app__spinner {
+  width: 12px;
+  height: 12px;
+
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+
+  animation: app-spin 0.7s linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================
+   DASHBOARD
+   ========================= */
+
+.app__dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.app__dashboard h2 {
+  margin: 0;
+
+  font-size: 10px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+
+  color: #667085;
+}
+
+/* =========================
+   SUCCESS
+   ========================= */
+
+.app__success {
+  padding: 11px 12px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  background: #f0fdf4;
+
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+}
+
+.app__success-icon {
+  width: 26px;
+  height: 26px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #dcfce7;
+  color: #15803d;
+
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.app__success div:last-child {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app__success strong {
+  font-size: 12px;
+  font-weight: 650;
+
+  color: #166534;
+}
+
+.app__success span {
+  overflow: hidden;
+
+  font-size: 10px;
+
+  color: #4b7b5c;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* =========================
+   STATS
+   ========================= */
+
+.app__stats {
+  margin: 0;
+
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.app__stat {
+  min-width: 0;
+
+  padding: 11px 7px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  background: #ffffff;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+
+  text-align: center;
+}
+
+.app__stat dd {
+  margin: 0;
+
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1;
+
+  color: #101828;
+}
+
+.app__stat dt {
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.3;
+
+  color: #667085;
+}
+
+.app__stat--protected {
+  background: #fffdf7;
+}
+
+.app__stat--privacy {
+  background: #f6fef9;
+  border-color: #d1fadf;
+}
+
+.app__stat--privacy dd {
+  color: #027a48;
+}
+
+/* =========================
+   CURRENT PAGE
+   ========================= */
+
+.app__page-info {
+  padding: 10px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: #ffffff;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 9px;
+}
+
+.app__page-info > div {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app__page-label {
+  font-size: 8px;
+  font-weight: 750;
+
+  letter-spacing: 0.08em;
+
+  color: #98a2b3;
+}
+
+.app__page-info strong {
+  overflow: hidden;
+
+  font-size: 12px;
+  font-weight: 650;
+
+  color: #101828;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.app__page-count {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #f2f4f7;
+  color: #475467;
+
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* =========================
+   PAGE PERCEPTION
+   ========================= */
+
+.app__elements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app__section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app__section-heading > span {
+  font-size: 9px;
+  color: #98a2b3;
+}
+
+.app__element-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.app__element {
+  padding: 11px 12px;
+
+  background: #ffffff;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 9px;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.app__element:hover {
+  border-color: #cfd4dc;
+
+  box-shadow: 0 3px 8px rgba(16, 24, 40, 0.05);
+
+  transform: translateY(-1px);
+}
+
+.app__element--sensitive {
+  border-left: 3px solid #f59e0b;
+}
+
+/* =========================
+   ELEMENT HEADER
+   ========================= */
+
+.app__element-heading {
+  margin-bottom: 7px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app__element-heading strong {
+  min-width: 0;
+
+  overflow: hidden;
+
+  font-size: 12px;
+  font-weight: 650;
+
+  color: #101828;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.app__sensitive {
+  padding: 3px 6px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  flex-shrink: 0;
+
+  border-radius: 999px;
+
+  background: #fffaeb;
+  color: #b54708;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.app__sensitive > span {
+  font-size: 6px;
+}
+
+/* =========================
+   ELEMENT METADATA
+   ========================= */
+
+.app__element-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.app__element-meta span {
+  padding: 3px 6px;
+
+  border-radius: 5px;
+
+  background: #f2f4f7;
+  color: #475467;
+
+  font-size: 8px;
+  font-weight: 650;
+
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* =========================
+   POSITION
+   ========================= */
+
+.app__element-position {
+  margin-top: 8px;
+
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 8px;
+
+  color: #98a2b3;
+}
+
+.app__element-position > span:not(.app__position-divider) {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  font-size: 7px;
+  font-weight: 700;
+
+  letter-spacing: 0.05em;
+
+  color: #b0b7c3;
+}
+
+.app__position-divider {
+  margin: 0 2px;
+  color: #d0d5dd;
+}
+
+/* =========================
+   SERVER / AGENT RESPONSE
+   ========================= */
+
+.app__instruction {
+  padding: 10px 12px;
+
+  background: #f5f7ff;
+
+  border: 1px solid #dfe3ff;
+  border-radius: 9px;
+}
+
+.app__instruction > span {
+  font-size: 8px;
+  font-weight: 750;
+
+  letter-spacing: 0.07em;
+
+  color: #667085;
+}
+
+.app__instruction p {
+  margin: 5px 0 0;
+
+  font-size: 11px;
+  line-height: 1.5;
+
+  color: #344054;
+}
+
+/* =========================
+   ERRORS
+   ========================= */
+
+.app__error {
+  margin: 0;
+  padding: 10px 12px;
+
+  background: #fff1f3;
+
+  border: 1px solid #fecdd6;
+  border-radius: 9px;
+
+  color: #b42318;
+
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* =========================
+   FOOTER
+   ========================= */
+
+.app__footer {
+  padding-top: 3px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  font-size: 9px;
+
+  color: #98a2b3;
+}
+
+.app__footer-shield {
+  color: #12b76a;
+}
+
+/* =========================
+   SCROLLBAR
+   ========================= */
+
+.app::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 999px;
+}
+
+.app::-webkit-scrollbar-thumb:hover {
+  background: #98a2b3;
+}
+
+/* =========================
+   PERCEPTION FILTER
+   ========================= */
+
+.app__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 8px 10px;
+
+  background: #ffffff;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 9px;
+}
+
+.app__filter label {
+  flex-shrink: 0;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
+  color: #667085;
+}
+
+.app__filter select {
+  min-width: 0;
+  flex: 1;
+
+  padding: 6px 28px 6px 8px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+
+  color: #344054;
+  background: #f9fafb;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+
+  outline: none;
+  cursor: pointer;
+}
+
+.app__filter select:focus {
+  border-color: #7f8cff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.app__filter-empty {
+  padding: 18px 12px;
+
+  background: #ffffff;
+
+  border: 1px dashed #d0d5dd;
+  border-radius: 9px;
+
+  font-size: 10px;
+  line-height: 1.4;
+
+  text-align: center;
+
+  color: #98a2b3;
+}
+
+/* =========================
+   MANUAL PRIVACY CONTROLS
+   ========================= */
+
+.app__protection-notice {
+  padding: 9px 11px;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+
+  background: #f5f7ff;
+
+  border: 1px solid #dfe3ff;
+  border-radius: 9px;
+
+  color: #475467;
+}
+
+.app__protection-notice > span {
+  flex-shrink: 0;
+
+  margin-top: 1px;
+
+  color: #6366f1;
+
+  font-size: 9px;
+}
+
+.app__protection-notice p {
+  margin: 0;
+
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* Container used for the locked badge + tooltip. */
+.app__protection-badge-wrapper {
+  position: relative;
+
+  flex-shrink: 0;
+}
+
+/* Automatically protected fields. */
+.app__sensitive--locked {
+  cursor: help;
+}
+
+/* Small information symbol inside the locked badge. */
+.app__info-icon {
+  margin-left: 1px;
+
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Tooltip explaining why automatic protection is locked. */
+.app__privacy-tooltip {
+  position: absolute;
+  z-index: 20;
+
+  top: calc(100% + 7px);
+  right: 0;
+
+  width: 205px;
+
+  padding: 9px 10px;
+
+  visibility: hidden;
+  opacity: 0;
+
+  background: #101828;
+  color: #ffffff;
+
+  border-radius: 7px;
+
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.45;
+
+  text-transform: none;
+  letter-spacing: normal;
+
+  pointer-events: none;
+
+  transform: translateY(-3px);
+
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+}
+
+/* Small tooltip arrow. */
+.app__privacy-tooltip::before {
+  content: "";
+
+  position: absolute;
+
+  top: -4px;
+  right: 15px;
+
+  width: 8px;
+  height: 8px;
+
+  background: #101828;
+
+  transform: rotate(45deg);
+}
+
+/* Show with mouse hover. */
+.app__protection-badge-wrapper:hover
+  .app__privacy-tooltip {
+  visibility: visible;
+  opacity: 1;
+
+  transform: translateY(0);
+}
+
+/* Also show with keyboard focus. */
+.app__protection-badge-wrapper:focus-within
+  .app__privacy-tooltip {
+  visibility: visible;
+  opacity: 1;
+
+  transform: translateY(0);
+}
+
+/* User-protected badge + Undo button. */
+.app__manual-protection {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  flex-shrink: 0;
+}
+
+.app__sensitive--manual {
+  background: #eef4ff;
+  color: #3538cd;
+}
+
+/* Protect / Undo controls. */
+.app__protection-action {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #344054;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.app__protection-action:hover {
+  background: #f9fafb;
+  border-color: #98a2b3;
+}
+
+.app__protection-action:focus-visible {
+  outline: none;
+
+  border-color: #7f8cff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.app__protection-action--undo {
+  color: #667085;
+}
