@@ -138,10 +138,10 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "BLOCKED";
 export type ValidationResult = {
   allowed: boolean;
   reason?: string;
-  action: AgentAction;
+  action?: AgentAction;
   sanitizedAction?: AgentAction;
-  riskLevel: RiskLevel;
-  timestamp: number;
+  riskLevel?: RiskLevel;
+  timestamp?: number;
 };
 
 /**

@@ -22,6 +22,7 @@ export const ELEMENT_SOURCES = {
 } as const;
 
 export const VISION_ELEMENT_TYPES = {
+  // UI Interactive Elements
   BUTTON: "BUTTON",
   INPUT: "INPUT",
   SELECT: "SELECT",
@@ -30,6 +31,8 @@ export const VISION_ELEMENT_TYPES = {
   ICON: "ICON",
   IMAGE: "IMAGE",
   AVATAR: "AVATAR",
+  
+  // Sensitive Visual Entities
   FACE: "FACE",
   SIGNATURE: "SIGNATURE",
   DOCUMENT: "DOCUMENT",
@@ -87,4 +90,12 @@ export const DEFAULT_SECURITY_THRESHOLDS = {
   MAX_LABEL_LENGTH: 100,
   MAX_VALUE_LENGTH: 4096,
   ACTION_TIMEOUT_MS: 30000,
+} as const;
+
+export const DEFAULT_THRESHOLDS = {
+  VISION_CONFIDENCE: 0.5,
+  OCR_CONFIDENCE: 0.6,
+  IOU_NMS_THRESHOLD: 0.45,
+  VISUAL_DIFF_SIMILARITY_THRESHOLD: 0.98,
+  DEBOUNCE_INFERENCE_MS: 500,
 } as const;

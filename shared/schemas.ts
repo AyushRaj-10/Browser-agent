@@ -113,12 +113,7 @@ export function isAgentAction(val: unknown): val is AgentAction {
 export function isValidationResult(val: unknown): val is ValidationResult {
   if (!val || typeof val !== "object") return false;
   const obj = val as Record<string, unknown>;
-  return (
-    typeof obj.allowed === "boolean" &&
-    isAgentAction(obj.action) &&
-    typeof obj.riskLevel === "string" &&
-    typeof obj.timestamp === "number"
-  );
+  return typeof obj.allowed === "boolean";
 }
 
 export function isEncryptedPayload(val: unknown): val is EncryptedPayload {
