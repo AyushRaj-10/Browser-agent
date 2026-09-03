@@ -21,7 +21,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     ref: "NAME_1",
     category: "NAME",
     label: "Full Legal Name",
-    decryptedValue: "Ayush Raj",
+    decryptedValue: "Amrit Mohan",
     encryptedCiphertext: "dGhpcy1pcy1hbi1hZXMtZ2NtLTI1Ni1lbmNyeXB0ZWQtY2lwaGVydGV4dA==",
     iv: "q8F2/K10Lx==",
   },
@@ -48,9 +48,18 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     ref: "EMAIL_1",
     category: "EMAIL",
     label: "Registered Email",
-    decryptedValue: "ayush@gmail.com",
+    decryptedValue: "amritmohan201205@gmail.com",
     encryptedCiphertext: "ZXhhbXBsZS1lbmNyeXB0ZWQtZW1haWwtYmxvYi0xMjg=",
     iv: "m9P3/Z88Ka==",
+  },
+  {
+    id: "sec_password_1",
+    ref: "PASSWORD_1",
+    category: "CUSTOM",
+    label: "Master Password",
+    decryptedValue: "Amrit@12345",
+    encryptedCiphertext: "cGFzc3dvcmQtYWVzLWdjbS1wYXlsb2FkLXZhbHVl",
+    iv: "w4E5/P78Qx==",
   },
   {
     id: "sec_phone_1",
@@ -149,6 +158,7 @@ function getFieldToken(
   const placeholderLower = (field.placeholder || "").toLowerCase();
   const haystack = `${idLower} ${nameLower} ${labelLower} ${placeholderLower}`;
 
+  if (field.type === "password" || /pass(word)?|pwd/i.test(haystack)) return { token: "PASSWORD_1", category: "PASSWORD" };
   if (field.type === "email" || /e-?mail/.test(haystack)) return { token: "EMAIL_1", category: "EMAIL" };
   if (field.type === "tel" || /phone|mobile|tel(ephone)?|cell/.test(haystack)) return { token: "PHONE_1", category: "PHONE" };
   if (/\bfirst.?name\b|fname/i.test(haystack)) return { token: "FIRST_NAME_1", category: "FIRST_NAME" };
@@ -413,19 +423,29 @@ export default function App() {
           )}
 
           {/* Summary Banner */}
-          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px", borderRadius: "8px" }}>
+          <div style={{ background: result?.error ? "#fef2f2" : "#f0fdf4", border: `1px solid ${result?.error ? "#fecaca" : "#bbf7d0"}`, padding: "10px", borderRadius: "8px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#166534" }}>
-                ✓ Privacy Status: Airtight
+              <span style={{ fontSize: "12px", fontWeight: 700, color: result?.error ? "#b91c1c" : "#166534" }}>
+                {result?.error ? "⚠️ Connection Error" : "✓ Privacy Status: Airtight"}
               </span>
-              <span style={{ fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px" }}>
-                0 BYTES LEAKED
+              <span style={{ fontSize: "11px", fontWeight: 700, background: result?.error ? "#fee2e2" : "#dcfce7", color: result?.error ? "#991b1b" : "#15803d", padding: "2px 6px", borderRadius: "4px" }}>
+                {result?.error ? "ACTION NEEDED" : "0 BYTES LEAKED"}
               </span>
             </div>
-            <p style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#14532d" }}>
-              {result?.serverInstruction || "Ready to resolve references locally without sending raw values."}
+            <p style={{ margin: "4px 0 0 0", fontSize: "11px", color: result?.error ? "#991b1b" : "#14532d" }}>
+              {result?.error ? (
+                <>
+                  {result.error}
+                  <strong style={{ display: "block", marginTop: "4px", color: "#b91c1c" }}>
+                    👉 Refresh (F5) this webpage tab, then click Run Automated Agent again!
+                  </strong>
+                </>
+              ) : (
+                result?.serverInstruction || "Ready to resolve references locally without sending raw values."
+              )}
             </p>
           </div>
+
         </>
       )}
 

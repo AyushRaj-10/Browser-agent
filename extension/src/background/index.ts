@@ -29,10 +29,11 @@ const BACKEND_API_KEY = "sih-secret-key-2026";
  * These defaults are used if the user has not customized the vault via the popup.
  */
 const DEFAULT_SECRETS: Record<string, string> = {
-  NAME_1: "Ayush Raj",
-  FIRST_NAME_1: "Ayush",
-  LAST_NAME_1: "Raj",
-  EMAIL_1: "ayush@gmail.com",
+  NAME_1: "Amrit Mohan",
+  FIRST_NAME_1: "Amrit",
+  LAST_NAME_1: "Mohan",
+  EMAIL_1: "amritmohan201205@gmail.com",
+  PASSWORD_1: "Amrit@12345",
   PHONE_1: "9876543210",
   DOB_1: "1998-05-15",
   PAN_1: "ABCDE1234F",
@@ -112,6 +113,10 @@ function resolveSecret(ref: string, secrets: Record<string, string>): string {
     return secrets["POLICY_1"] || "";
   }
 
+  if (ref.startsWith("PASSWORD") || ref.startsWith("PASS")) {
+    return secrets["PASSWORD_1"] || secrets["PASSWORD"] || "";
+  }
+
   return "";
 }
 
@@ -150,6 +155,25 @@ async function getActiveTabId(): Promise<number> {
   }
 
   return tab.id;
+}
+
+function waitForTabComplete(tabId: number, timeoutMs = 12000): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      browser.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, timeoutMs);
+
+    function listener(updatedTabId: number, info: { status?: string }) {
+      if (updatedTabId === tabId && info.status === "complete") {
+        clearTimeout(timer);
+        browser.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    }
+
+    browser.tabs.onUpdated.addListener(listener);
+  });
 }
 
 async function forwardToActiveTab(
@@ -229,27 +253,24 @@ function buildSanitizedPayload(
     label: string;
     sensitive: boolean;
   }> = [];
-  const buttons: Array<{ target: string; text: string }> = [];
-
+  const buttons: Array<{ target: string; text: string; isNav?: boolean }> = [];
   for (const field of analysis.fields) {
-    // Strictly block passwords from reaching reasoning server or autofill
-    if (field.type === "password" || field.id.toLowerCase().includes("password")) {
-      continue;
-    }
-
     // Collect buttons/submit elements (exclude passive nav links)
     const isButton = field.tag === "button" || 
                      (field.type as string) === "submit" || 
                      field.role === "button" ||
-                     (field.tag === "a" && /button|btn|submit/i.test(`${field.id} ${field.name || ""}`));
+                     (field.tag === "a" && /button|btn|submit|sign|login|join|journey|register/i.test(`${field.id} ${field.name || ""} ${field.text || ""} ${field.label || ""}`));
 
     if (isButton) {
+      const isNav = field.role === "nav-item" || Boolean(field.id?.toLowerCase().includes("nav") || field.name?.toLowerCase().includes("nav"));
       buttons.push({
         target: field.id,
         text: (field.text || field.label || field.id || "").replace(/\s+/g, " ").trim(),
+        isNav,
       });
       continue;
     }
+
 
     // Skip passive links (e.g. navigation links, footer links) from form field lists
     if (field.tag === "a" || field.type === "link") {
@@ -266,7 +287,11 @@ function buildSanitizedPayload(
     let refToken = "";
     let isSensitive = field.sensitive;
 
-    if (field.type === "email" || /e-?mail/.test(haystack)) {
+    if (field.type === "password" || /pass(word)?|pwd/i.test(haystack)) {
+      refToken = nextRef("PASSWORD");
+      isSensitive = true;
+    } else if (field.type === "email" || /e-?mail/.test(haystack)) {
+
       refToken = nextRef("EMAIL");
       isSensitive = true;
     } else if (field.type === "tel" || /phone|mobile|tel(ephone)?|cell/.test(haystack)) {
@@ -346,11 +371,30 @@ function buildSanitizedPayload(
     page_url: analysis.url,
     fields: sanitizedFields,
     buttons,
-    // Select primary submit/action button, fallback to first button
+    // Select primary submit/action button, distinguishing form action from header nav
     button: (() => {
-      const submitBtn = buttons.find(b => /submit|open|apply|continue|next|sign|send|login|register/i.test(`${b.text} ${b.target}`)) || buttons[0];
+      const taskLower = task.toLowerCase();
+      const formButtons = buttons.filter(b => !b.isNav);
+      const candidates = formButtons.length > 0 ? formButtons : buttons;
+
+      let submitBtn: { target: string; text: string } | undefined;
+
+      if (/sign.*up|register|join|create|journey|seeker/i.test(taskLower)) {
+        submitBtn = candidates.find(b => /sign.*up|register|create|journey|join|begin|submit/i.test(`${b.text} ${b.target}`)) ||
+                    candidates.find(b => !/sign.*in|login/i.test(`${b.text} ${b.target}`));
+      } else if (/log.*in|sign.*in|sanctuary/i.test(taskLower)) {
+        submitBtn = candidates.find(b => /sign.*in|login|sanctuary|continue|submit/i.test(`${b.text} ${b.target}`));
+      } else {
+        submitBtn = candidates.find(b => /submit|apply|confirm|open|continue|next|sign|send/i.test(`${b.text} ${b.target}`));
+      }
+
+      if (!submitBtn) {
+        submitBtn = candidates[candidates.length - 1] || candidates[0];
+      }
+
       return submitBtn ? { target: submitBtn.target, text: submitBtn.text } : undefined;
     })(),
+
   };
 
   return {
@@ -368,12 +412,141 @@ async function handleAskAI(
   console.log(`%c[User-Task] "${task}"`, "color: #0f172a; font-weight: 600;");
 
   try {
+    // 1. Get active tab and inspect current URL
+    const tabId = await getActiveTabId();
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    const currentUrl = tab?.url || "";
+    const taskLower = task.toLowerCase();
+
+    let navigateTargetUrl: string | null = null;
+
+    // 1. Check if user explicitly mentioned a website, domain, or known service in their prompt
+    const urlPatternMatch = task.match(/https?:\/\/[^\s]+|(?:\b[a-zA-Z0-9-]+\.)+(?:com|org|net|gov|in|io|co|edu|app|ai|me|dev)(?:\/[^\s]*)?/i);
+    const domainKeywordMatch = taskLower.match(/\b(el[ly]+tarot|digilocker|google|github)\b/i);
+
+    let explicitTargetUrl: string | null = null;
+
+    if (urlPatternMatch) {
+      let matched = urlPatternMatch[0];
+      if (!matched.startsWith("http://") && !matched.startsWith("https://")) {
+        matched = "https://" + matched;
+      }
+      explicitTargetUrl = matched;
+    } else if (domainKeywordMatch) {
+      const keyword = domainKeywordMatch[1].toLowerCase();
+      if (/el[ly]+tarot/.test(keyword)) explicitTargetUrl = "https://www.elytarot.com";
+      else if (keyword === "digilocker") explicitTargetUrl = "https://accounts.digilocker.gov.in";
+      else if (keyword === "google") explicitTargetUrl = "https://accounts.google.com";
+      else if (keyword === "github") explicitTargetUrl = "https://github.com/login";
+    }
+
+    if (explicitTargetUrl) {
+      try {
+        const parsed = new URL(explicitTargetUrl);
+        const isSignup = /sign.*up|register|join|create.*account/i.test(taskLower);
+        const isLogin = /log.*in|sign.*in/i.test(taskLower);
+
+        // If no specific sub-path was provided, append /login or /register according to intent
+        if (parsed.pathname === "/" || parsed.pathname === "") {
+          if (parsed.hostname.includes("elytarot.com")) {
+            if (isSignup) parsed.pathname = "/register";
+            else if (isLogin) parsed.pathname = "/login";
+          } else if (parsed.hostname.includes("google.com")) {
+            parsed.hostname = "accounts.google.com";
+          } else if (isSignup) {
+            parsed.pathname = "/register";
+          } else if (isLogin) {
+            parsed.pathname = "/login";
+          }
+        }
+
+        if (!currentUrl.includes(parsed.hostname) || (parsed.pathname !== "/" && !currentUrl.includes(parsed.pathname))) {
+          navigateTargetUrl = parsed.toString();
+        }
+      } catch {
+        navigateTargetUrl = explicitTargetUrl;
+      }
+    } else if (currentUrl.startsWith("chrome://") || currentUrl.startsWith("chrome-search://") || currentUrl.startsWith("edge://") || currentUrl.startsWith("about:") || currentUrl === "") {
+      // User is on an internal / blank tab without mentioning a target website
+      navigateTargetUrl = "https://accounts.google.com";
+    } else if (currentUrl.includes("google.com") && !currentUrl.includes("accounts.google.com") && /google.*login|login.*google|sign.*in.*google/i.test(taskLower)) {
+      navigateTargetUrl = "https://accounts.google.com";
+    }
+
+
+    // Smart link discovery: if user wants to sign up or log in on ANY website,
+    // check URL first — if not already on signup/login page, find and click the right link.
+    if (!navigateTargetUrl && !currentUrl.startsWith("chrome://") && !currentUrl.startsWith("about:")) {
+      const isSignupIntent = /sign.*up|register|join|create.*account|new.*seeker|begin.*journey/i.test(taskLower);
+      const isLoginIntent = !isSignupIntent && /log.*in|sign.*in/i.test(taskLower);
+
+      if (isSignupIntent || isLoginIntent) {
+        // Check URL: are we already on a signup/login page?
+        const alreadyOnTarget = isSignupIntent
+          ? /signup|register|join|create-account/i.test(currentUrl)
+          : /login|signin|sign-in/i.test(currentUrl);
+
+        if (!alreadyOnTarget) {
+          console.log(`%c[Agent-Navigator] 🔍 Not on ${isSignupIntent ? "signup" : "login"} page yet. Scanning current page for navigation links...`, "color: #0284c7;");
+          
+          // Scan the current page for matching links
+          const preCheck = await analyzeActivePage().catch(() => null);
+          const pageLinks = preCheck?.analysis?.fields?.filter((f: any) => f.tag === "a") || [];
+
+          let matchedLink: string | null = null;
+          if (isSignupIntent) {
+            const signupLink = pageLinks.find((f: any) => {
+              const combo = `${f.id} ${f.text || ""} ${f.label || ""} ${f.name || ""}`.toLowerCase();
+              return /sign.*up|register|join|create|begin.*journey|new.*seeker/i.test(combo);
+            });
+            if (signupLink) matchedLink = signupLink.id;
+          } else {
+            const loginLink = pageLinks.find((f: any) => {
+              const combo = `${f.id} ${f.text || ""} ${f.label || ""} ${f.name || ""}`.toLowerCase();
+              return /log.*in|sign.*in|login/i.test(combo);
+            });
+            if (loginLink) matchedLink = loginLink.id;
+          }
+
+          if (matchedLink) {
+            console.log(`%c[Agent-Navigator] 🔗 Found link "${matchedLink}", clicking to navigate...`, "color: #0284c7; font-weight: bold;");
+            await executeDomActionInTab(tabId, "CLICK", matchedLink);
+            await waitForTabComplete(tabId);
+            await new Promise((r) => setTimeout(r, 2000));
+          } else {
+            // Fallback: guess common URL pattern
+            try {
+              const urlObj = new URL(currentUrl);
+              navigateTargetUrl = isSignupIntent
+                ? `${urlObj.origin}/register`
+                : `${urlObj.origin}/login`;
+            } catch {}
+          }
+        }
+      }
+    }
+
+    if (navigateTargetUrl) {
+      console.log(`%c[Agent-Navigator] 🌐 Navigating active tab to ${navigateTargetUrl}...`, "color: #0284c7; font-weight: bold;");
+      await browser.tabs.update(tabId, { url: navigateTargetUrl });
+      await waitForTabComplete(tabId);
+      await new Promise((r) => setTimeout(r, 1800));
+    }
+
     // Load secrets dynamically from the user-editable vault
     const secrets = await loadOnDeviceSecrets();
     console.log(`%c[Secret-Store] 🔐 Loaded ${Object.keys(secrets).length} on-device secrets from vault`, "color: #7c3aed;");
 
-    const { tabId, analysis } = await analyzeActivePage();
+    let { analysis } = await analyzeActivePage();
+    if (!analysis || analysis.fields.length === 0) {
+      await new Promise((r) => setTimeout(r, 1200));
+      const retry = await analyzeActivePage();
+      if (retry?.analysis?.fields?.length > 0) {
+        analysis = retry.analysis;
+      }
+    }
     console.log(`%c[Perception] 👁️ Discovered ${analysis.fields.length} interactive elements on active page.`, "color: #0369a1;");
+
 
     const {
       payload,
@@ -432,6 +605,12 @@ async function handleAskAI(
               await new Promise((r) => setTimeout(r, 400));
               await executeDomActionInTab(tabId, "CLICK", act.target);
               executedCount++;
+            } else if (act.action === "NAVIGATE") {
+              console.log(`%c[DOM-Executor] 🌐 Navigating to "${act.target}"`, "color: #059669;");
+              await browser.tabs.update(tabId, { url: act.target });
+              await waitForTabComplete(tabId);
+              await new Promise((r) => setTimeout(r, 1200));
+              executedCount++;
             } else if (act.action === "SELECT") {
               console.log(`%c[DOM-Executor] 📋 Selecting "${act.value}" in "${act.target}"`, "color: #059669;");
               await executeDomActionInTab(tabId, "SELECT", act.target, act.value);
@@ -444,6 +623,7 @@ async function handleAskAI(
               await executeDomActionInTab(tabId, "WAIT", act.target, act.value);
             }
           }
+
 
           const refCount = data.actions.filter((a: any) => a.action === "TYPE_REFERENCE").length;
           const typeCount = data.actions.filter((a: any) => a.action === "TYPE").length;

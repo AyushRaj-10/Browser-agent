@@ -38,10 +38,11 @@ const DEFAULT_SEED_SECRETS: Array<{
   label: string;
   value: string;
 }> = [
-  { ref: "NAME_1", category: "NAME", label: "Full Name", value: "Ayush Raj" },
-  { ref: "FIRST_NAME_1", category: "NAME", label: "First Name", value: "Ayush" },
-  { ref: "LAST_NAME_1", category: "NAME", label: "Last Name", value: "Raj" },
-  { ref: "EMAIL_1", category: "EMAIL", label: "Primary Email", value: "ayush@gmail.com" },
+  { ref: "NAME_1", category: "NAME", label: "Full Name", value: "Amrit Mohan" },
+  { ref: "FIRST_NAME_1", category: "NAME", label: "First Name", value: "Amrit" },
+  { ref: "LAST_NAME_1", category: "NAME", label: "Last Name", value: "Mohan" },
+  { ref: "EMAIL_1", category: "EMAIL", label: "Primary Email", value: "amritmohan201205@gmail.com" },
+  { ref: "PASSWORD_1", category: "CUSTOM", label: "Master Password", value: "Amrit@12345" },
   { ref: "PHONE_1", category: "PHONE", label: "Primary Mobile", value: "9876543210" },
   { ref: "DOB_1", category: "DOB", label: "Date of Birth", value: "1998-05-15" },
   { ref: "PAN_1", category: "GOVID", label: "PAN Number", value: "ABCDE1234F" },
@@ -202,20 +203,25 @@ export async function initIndexedDBVault(): Promise<void> {
   const db = await openIDB();
   const key = await getOrCreateEncryptionKey();
 
-  const count = await new Promise<number>((resolve, reject) => {
+  const existingKeys = await new Promise<string[]>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
-    const req = store.count();
-    req.onsuccess = () => resolve(req.result);
+    const req = store.getAllKeys();
+    req.onsuccess = () => resolve(req.result as string[]);
     req.onerror = () => reject(req.error);
   });
 
-  if (count === 0) {
-    console.log(`[IndexedDB-Vault] Initializing and seeding ${DEFAULT_SEED_SECRETS.length} records into ${DB_NAME}`);
+  const existingSet = new Set(existingKeys);
+  const missingSeeds = DEFAULT_SEED_SECRETS.filter(
+    (seed) => !existingSet.has(`sec_${seed.ref.toLowerCase()}`)
+  );
+
+  if (missingSeeds.length > 0) {
+    console.log(`[IndexedDB-Vault] Seeding ${missingSeeds.length} missing records into ${DB_NAME}`);
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
 
-    for (const seed of DEFAULT_SEED_SECRETS) {
+    for (const seed of missingSeeds) {
       const { ciphertext, iv } = await encryptWithAES(seed.value, key);
       const entry: StoredSecretEntry = {
         id: `sec_${seed.ref.toLowerCase()}`,
@@ -235,9 +241,10 @@ export async function initIndexedDBVault(): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-    console.log(`[IndexedDB-Vault] ✅ Seed complete. Database "${DB_NAME}" populated with encrypted AES-GCM records.`);
+    console.log(`[IndexedDB-Vault] ✅ Synchronized ${missingSeeds.length} new records (including PASSWORD_1) into "${DB_NAME}".`);
   }
 }
+
 
 /**
  * Returns all secrets from IndexedDB with both decrypted and encrypted views for the UI.

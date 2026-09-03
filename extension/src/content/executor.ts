@@ -43,9 +43,24 @@ function triggerInputEvents(element: HTMLElement, newValue: string): void {
     }
 
     element.setAttribute("value", newValue);
-    element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+
+    try {
+      element.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          cancelable: true,
+          data: newValue,
+          inputType: "insertText",
+        })
+      );
+    } catch {
+      element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+    }
+
     element.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true }));
     element.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new Event("blur", { bubbles: true }));
   }
 }
 
@@ -64,7 +79,33 @@ export async function executeDomAction(
     return { success: true, action: verb, target };
   }
 
-  const element = getAnalyzedElement(target);
+  let element = getAnalyzedElement(target);
+
+  // Resilient fallback: If dynamic page ID changed, lookup by input/button semantics
+  if (!element || !element.isConnected) {
+    if (verb === "TYPE") {
+      const targetLower = target.toLowerCase();
+      if (targetLower.includes("password") || targetLower.includes("pass") || targetLower.includes("pwd")) {
+        element = document.querySelector<HTMLElement>(
+          "input[type='password'], input[name*='password'], input[id*='password'], input[placeholder*='password']"
+        );
+      } else if (targetLower.includes("email") || targetLower.includes("user") || targetLower.includes("identifier") || targetLower.includes("login")) {
+        element = document.querySelector<HTMLElement>(
+          "input[type='email'], input[name='identifier'], #identifierId, input[name*='email'], input[placeholder*='email']"
+        );
+      } else {
+        element = document.querySelector<HTMLElement>(
+          "input:not([type='hidden']):not([disabled])"
+        );
+      }
+    } else if (verb === "CLICK") {
+      element = document.querySelector<HTMLElement>(
+        "button[type='submit'], button.btn-submit, #identifierNext button, #identifierNext, [role='button'][id*='Next'], button:not([disabled])"
+      );
+    }
+  }
+
+
 
   if (!element || !element.isConnected) {
     return {
@@ -74,6 +115,7 @@ export async function executeDomAction(
       error: `DOM element '${target}' not found or disconnected from document.`,
     };
   }
+
 
   try {
     element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -89,12 +131,15 @@ export async function executeDomAction(
           return { success: true, action: verb, target };
         }
 
-        element.dispatchEvent(
-          new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window })
-        );
-        element.dispatchEvent(
-          new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window })
-        );
+        try {
+          element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+        } catch {}
+        element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+        try {
+          element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
+        } catch {}
+        element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+        element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
         element.click();
 
         const form = element.closest("form");
