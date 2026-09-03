@@ -27,7 +27,8 @@ type InteractiveElement =
   | HTMLTextAreaElement
   | HTMLSelectElement
   | HTMLButtonElement
-  | HTMLAnchorElement;
+  | HTMLAnchorElement
+  | HTMLElement;
 
 /**
  * Maps analysis IDs to the exact DOM elements that produced them.
@@ -318,13 +319,33 @@ export function analyzeDom(): PageAnalysis {
 
   const elements = Array.from(
     document.querySelectorAll<InteractiveElement>(
-      "input, textarea, select, button, a[href]"
+      "input, textarea, select, button, a[href], [role='button'], [role='textbox']"
     )
   ).filter((el) => {
+    // Skip hidden inputs
     if (
       el instanceof HTMLInputElement &&
       el.type.toLowerCase() === "hidden"
     ) {
+      return false;
+    }
+
+    // Skip Google Translate widget fields
+    const elId = el.id || "";
+    const elName = el.getAttribute("name") || "";
+    if (/^goog-gt-|^gt-|google_translate/i.test(elId) ||
+        /^goog-gt-|^gt-|google_translate/i.test(elName)) {
+      return false;
+    }
+
+    // Skip elements inside Google Translate or other third-party iframes/widgets
+    if (el.closest("#google_translate_element, .goog-te-menu-frame, .skiptranslate, [class*='goog-te']")) {
+      return false;
+    }
+
+    // Skip completely invisible elements (0 size)
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
       return false;
     }
 
@@ -347,6 +368,7 @@ export function analyzeDom(): PageAnalysis {
       const analysisId =
         el.id || `agent-element-${index}`;
 
+      el.setAttribute("data-agent-id", analysisId);
       analyzedElements.set(analysisId, el);
 
       let checked: boolean | null = null;
@@ -361,7 +383,8 @@ export function analyzeDom(): PageAnalysis {
 
       const text =
         el instanceof HTMLButtonElement ||
-        el instanceof HTMLAnchorElement
+        el instanceof HTMLAnchorElement ||
+        el.getAttribute("role") === "button"
           ? el.textContent?.trim().slice(0, 100) || null
           : null;
 
@@ -378,7 +401,9 @@ export function analyzeDom(): PageAnalysis {
       return {
         id: analysisId,
         tag: el.tagName.toLowerCase(),
-        role: el.getAttribute("role"),
+        role: el.closest("nav, header, [role='navigation']")
+          ? "nav-item"
+          : (el.getAttribute("role") || undefined),
         name: el.getAttribute("name"),
         label,
         type,
@@ -401,4 +426,41 @@ export function analyzeDom(): PageAnalysis {
     fields,
     analyzedAt: Date.now(),
   };
+}
+
+/**
+ * Returns the live DOM element for a given analysis ID or CSS/ID selector.
+ */
+export function getAnalyzedElement(id: string): InteractiveElement | HTMLElement | null {
+  const fromMap = analyzedElements.get(id);
+  if (fromMap && fromMap.isConnected) {
+    return fromMap;
+  }
+
+  // Fallback direct DOM search by data-agent-id attribute
+  const byAttr = document.querySelector<HTMLElement>(`[data-agent-id="${id}"]`);
+  if (byAttr) return byAttr;
+
+  // Fallback direct DOM search by ID
+  const byId = document.getElementById(id);
+  if (byId) return byId;
+
+  // Fallback by ID selector
+  try {
+    const byIdSelector = document.querySelector<HTMLElement>(`#${id}`);
+    if (byIdSelector) return byIdSelector;
+  } catch {}
+
+  // Fallback by Name attribute
+  try {
+    const byName = document.querySelector<HTMLElement>(`[name="${id}"]`);
+    if (byName) return byName;
+  } catch {}
+
+  try {
+    const byQuery = document.querySelector<HTMLElement>(id);
+    if (byQuery) return byQuery;
+  } catch {}
+
+  return null;
 }

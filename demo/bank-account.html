@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NovaPay — Open Savings Account</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #d2d2d7;
+      padding: 0 40px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo span { color: #0066cc; }
+    header nav a {
+      font-size: 13px;
+      color: #6e6e73;
+      text-decoration: none;
+      margin-left: 28px;
+    }
+    header nav a:hover { color: #1d1d1f; }
+
+    main { max-width: 640px; margin: 40px auto; padding: 0 20px; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #6e6e73;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #6e6e73;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e8e8ed;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .row.single { grid-template-columns: 1fr; }
+    .row.triple { grid-template-columns: 1fr 1fr 1fr; }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #1d1d1f;
+      margin-bottom: 6px;
+    }
+    .field label .req { color: #ff3b30; }
+
+    .field input, .field select, .field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      background: #fff;
+      color: #1d1d1f;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 3px rgba(0,102,204,0.12);
+    }
+    .field input::placeholder { color: #aeaeb2; }
+
+    .field .helper {
+      font-size: 11px;
+      color: #aeaeb2;
+      margin-top: 4px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 20px 0 24px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      margin-top: 3px;
+      accent-color: #0066cc;
+    }
+    .checkbox-row label {
+      font-size: 13px;
+      color: #6e6e73;
+      line-height: 1.5;
+    }
+    .checkbox-row label a { color: #0066cc; text-decoration: none; }
+
+    .btn-submit {
+      width: 100%;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      background: #0066cc;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-submit:hover { background: #0055b3; }
+    .btn-submit:disabled { background: #aeaeb2; cursor: not-allowed; }
+
+    .trust-strip {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      padding: 16px;
+      font-size: 11px;
+      color: #aeaeb2;
+    }
+    .trust-strip span { display: flex; align-items: center; gap: 4px; }
+
+    /* Success state */
+    .success-card {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+    .success-card.show { display: block; }
+    .success-card .check {
+      width: 48px; height: 48px;
+      background: #16a34a;
+      color: #fff;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+    .success-card h2 { font-size: 20px; font-weight: 700; color: #14532d; margin-bottom: 4px; }
+    .success-card p { font-size: 14px; color: #166534; margin-bottom: 20px; }
+    .success-card .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      text-align: left;
+      background: #fff;
+      border: 1px solid #dcfce7;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .success-card .detail-grid .item { font-size: 13px; }
+    .success-card .detail-grid .item .lbl {
+      font-size: 11px;
+      color: #6e6e73;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .success-card .detail-grid .item .val { font-weight: 600; color: #1d1d1f; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">Nova<span>Pay</span></div>
+    <nav>
+      <a href="#">Personal</a>
+      <a href="#">Business</a>
+      <a href="#">Cards</a>
+      <a href="#">Support</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Open a Savings Account</h1>
+    <p class="subtitle">Zero balance. Zero fees. Get your account number in under 2 minutes.<br>We'll need a few details to verify your identity.</p>
+
+    <form id="kyc-form">
+      <!-- Card 1: Personal Information -->
+      <div class="card">
+        <div class="section-label">Personal Information</div>
+
+        <div class="row">
+          <div class="field">
+            <label for="first_name">First Name <span class="req">*</span></label>
+            <input type="text" id="first_name" name="firstName" placeholder="Ayush" required />
+          </div>
+          <div class="field">
+            <label for="last_name">Last Name <span class="req">*</span></label>
+            <input type="text" id="last_name" name="lastName" placeholder="Raj" required />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="email_address">Email Address <span class="req">*</span></label>
+            <input type="email" id="email_address" name="email" placeholder="ayush@example.com" required />
+          </div>
+          <div class="field">
+            <label for="mobile_number">Mobile Number <span class="req">*</span></label>
+            <input type="tel" id="mobile_number" name="mobile" placeholder="+91 98765 43210" required />
+            <div class="helper">We'll send an OTP to verify this number</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="date_of_birth">Date of Birth <span class="req">*</span></label>
+            <input type="date" id="date_of_birth" name="dob" required />
+          </div>
+          <div class="field">
+            <label for="gender">Gender</label>
+            <select id="gender" name="gender">
+              <option value="" disabled selected>Select</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Identity Verification -->
+      <div class="card">
+        <div class="section-label">Identity Verification (KYC)</div>
+
+        <div class="row">
+          <div class="field">
+            <label for="pan_number">PAN Number <span class="req">*</span></label>
+            <input type="text" id="pan_number" name="pan" placeholder="ABCDE1234F" maxlength="10" required />
+            <div class="helper">10-character alphanumeric PAN</div>
+          </div>
+          <div class="field">
+            <label for="aadhaar_number">Aadhaar Number <span class="req">*</span></label>
+            <input type="text" id="aadhaar_number" name="aadhaar" placeholder="1234 5678 9012" maxlength="14" required />
+            <div class="helper">12-digit Aadhaar linked to your mobile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Residential Address -->
+      <div class="card">
+        <div class="section-label">Residential Address</div>
+
+        <div class="row single">
+          <div class="field">
+            <label for="address_line">Address Line 1 <span class="req">*</span></label>
+            <input type="text" id="address_line" name="addressLine1" placeholder="Flat / Building / Street" required />
+          </div>
+        </div>
+
+        <div class="row triple">
+          <div class="field">
+            <label for="city">City <span class="req">*</span></label>
+            <input type="text" id="city" name="city" placeholder="Mumbai" required />
+          </div>
+          <div class="field">
+            <label for="state">State <span class="req">*</span></label>
+            <select id="state" name="state" required>
+              <option value="" disabled selected>Select state</option>
+              <option value="AN">Andaman and Nicobar Islands</option>
+              <option value="AP">Andhra Pradesh</option>
+              <option value="AR">Arunachal Pradesh</option>
+              <option value="AS">Assam</option>
+              <option value="BR">Bihar</option>
+              <option value="CG">Chhattisgarh</option>
+              <option value="DL">Delhi</option>
+              <option value="GA">Goa</option>
+              <option value="GJ">Gujarat</option>
+              <option value="HR">Haryana</option>
+              <option value="HP">Himachal Pradesh</option>
+              <option value="JK">Jammu and Kashmir</option>
+              <option value="JH">Jharkhand</option>
+              <option value="KA">Karnataka</option>
+              <option value="KL">Kerala</option>
+              <option value="MP">Madhya Pradesh</option>
+              <option value="MH">Maharashtra</option>
+              <option value="MN">Manipur</option>
+              <option value="ML">Meghalaya</option>
+              <option value="MZ">Mizoram</option>
+              <option value="NL">Nagaland</option>
+              <option value="OD">Odisha</option>
+              <option value="PB">Punjab</option>
+              <option value="RJ">Rajasthan</option>
+              <option value="SK">Sikkim</option>
+              <option value="TN">Tamil Nadu</option>
+              <option value="TS">Telangana</option>
+              <option value="TR">Tripura</option>
+              <option value="UK">Uttarakhand</option>
+              <option value="UP">Uttar Pradesh</option>
+              <option value="WB">West Bengal</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pincode">PIN Code <span class="req">*</span></label>
+            <input type="text" id="pincode" name="pincode" placeholder="400001" maxlength="6" required />
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Account Preferences -->
+      <div class="card">
+        <div class="section-label">Account Preferences</div>
+
+        <div class="row">
+          <div class="field">
+            <label for="account_type">Account Type</label>
+            <select id="account_type" name="accountType">
+              <option value="savings" selected>Savings Account</option>
+              <option value="salary">Salary Account</option>
+              <option value="current">Current Account</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="nominee_name">Nominee Full Name</label>
+            <input type="text" id="nominee_name" name="nomineeName" placeholder="Parent or spouse name" />
+          </div>
+        </div>
+
+        <div class="row single">
+          <div class="field">
+            <label for="referral_code">Referral Code</label>
+            <input type="text" id="referral_code" name="referralCode" placeholder="Optional" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Terms & Submit -->
+      <div class="card">
+        <div class="checkbox-row">
+          <input type="checkbox" id="terms_agree" name="termsAgree" required />
+          <label for="terms_agree">
+            I confirm that the information provided is accurate. I agree to NovaPay's
+            <a href="#">Terms of Service</a>, <a href="#">Privacy Policy</a>, and consent to
+            e-KYC verification via Aadhaar and PAN as per RBI guidelines.
+          </label>
+        </div>
+
+        <button type="submit" id="btn_open_account" class="btn-submit">
+          Open My Account
+        </button>
+      </div>
+    </form>
+
+    <div class="trust-strip">
+      <span>🔒 256-bit encryption</span>
+      <span>🏛️ RBI regulated</span>
+      <span>🛡️ DICGC insured up to ₹5 lakh</span>
+    </div>
+
+    <!-- Success View -->
+    <div id="success-view" class="success-card">
+      <div class="check">✓</div>
+      <h2>Account Created Successfully</h2>
+      <p>Your NovaPay Savings Account is ready. You'll receive your account details via email shortly.</p>
+      <div class="detail-grid">
+        <div class="item">
+          <div class="lbl">Account Holder</div>
+          <div class="val" id="res-name">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl">Account Number</div>
+          <div class="val" id="res-acnum">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl">Email</div>
+          <div class="val" id="res-email">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl">IFSC Code</div>
+          <div class="val" id="res-ifsc">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl">PAN Verified</div>
+          <div class="val" id="res-pan">—</div>
+        </div>
+        <div class="item">
+          <div class="lbl">Opened On</div>
+          <div class="val" id="res-date">—</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById("kyc-form").addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      var fn = document.getElementById("first_name").value || "Ayush";
+      var ln = document.getElementById("last_name").value || "Raj";
+      var em = document.getElementById("email_address").value || "ayush@example.com";
+      var pan = document.getElementById("pan_number").value || "ABCDE1234F";
+
+      document.getElementById("res-name").textContent = fn + " " + ln;
+      document.getElementById("res-acnum").textContent = "NOVA" + Math.floor(1000000000 + Math.random() * 9000000000);
+      document.getElementById("res-email").textContent = em;
+      document.getElementById("res-ifsc").textContent = "NOVA0000" + Math.floor(10 + Math.random() * 90);
+      document.getElementById("res-pan").textContent = pan.substring(0, 3) + "****" + pan.substring(7);
+      document.getElementById("res-date").textContent = new Date().toLocaleDateString("en-IN", {
+        day: "numeric", month: "short", year: "numeric"
+      });
+
+      document.getElementById("kyc-form").style.display = "none";
+      var sv = document.getElementById("success-view");
+      sv.classList.add("show");
+      sv.scrollIntoView({ behavior: "smooth" });
+    });
+  </script>
+  <script src="/demo/demo-idb-sync.js"></script>
+</body>
+</html>

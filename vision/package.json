@@ -1,0 +1,36 @@
+{
+  "name": "@browser-agent/vision",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local Vision & OCR Module for Privacy-Preserving Browser Agent (Person 2)",
+  "main": "dist/vision/src/index.js",
+  "types": "dist/vision/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "browser-agent",
+    "vision",
+    "ocr",
+    "onnxruntime-web",
+    "webgpu",
+    "tesseract.js",
+    "privacy"
+  ],
+  "author": "Person 2 (Local Vision & OCR Lead)",
+  "license": "MIT",
+  "dependencies": {
+    "onnxruntime-web": "^1.21.0",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.308",
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

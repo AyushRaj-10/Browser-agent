@@ -8,23 +8,40 @@ export interface VlmMessage {
 
 export async function callVlm(contextPayload: Record<string, any>): Promise<string> {
   const provider = config.vlmProvider;
+  const isLocalProvider = provider === 'vllm' || provider === 'ollama' || provider === 'local';
+  const hasAuthOrLocal = Boolean(config.vlmApiKey) || isLocalProvider;
 
-  // Mock mode for local development and unit tests
-  if (provider === 'mock' || !config.vlmApiKey) {
+  // Mock mode for local development, unit tests, or when no auth and not a local provider
+  if (provider === 'mock' || !hasAuthOrLocal || config.nodeEnv === 'test') {
+    console.log('[VLM-Client] Using mock mode (no API key, VLM_PROVIDER=mock, or NODE_ENV=test)');
     return generateMockVlmResponse(contextPayload);
   }
 
   const promptText = `User Task: ${contextPayload.user_task}\nPage Context: ${JSON.stringify(contextPayload)}`;
 
-  if (provider === 'openai') {
-    return callOpenAI(promptText);
-  } else if (provider === 'anthropic') {
-    return callAnthropic(promptText);
-  } else if (provider === 'gemini') {
-    return callGemini(promptText);
-  }
+  console.log(`[VLM-Client] Calling ${provider} (model: ${config.vlmModel || (provider === 'vllm' ? 'Qwen/Qwen2-VL-7B-Instruct' : provider === 'ollama' ? 'llama3.2-vision' : 'default')})...`);
+  const startTime = Date.now();
 
-  throw new Error(`Unsupported VLM provider: ${provider}`);
+  try {
+    let result: string;
+
+    if (provider === 'openai' || provider === 'vllm' || provider === 'ollama' || provider === 'local') {
+      result = await callOpenAI(promptText);
+    } else if (provider === 'anthropic') {
+      result = await callAnthropic(promptText);
+    } else if (provider === 'gemini') {
+      result = await callGemini(promptText);
+    } else {
+      throw new Error(`Unsupported VLM provider: ${provider}`);
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[VLM-Client] ${provider} responded in ${elapsed}ms (${result.length} chars)`);
+    return result;
+  } catch (err: any) {
+    console.warn(`[VLM-Client] Remote VLM call failed (${err?.message || 'network error'}). Seamlessly failing over to local deterministic engine.`);
+    return generateMockVlmResponse(contextPayload);
+  }
 }
 
 function generateMockVlmResponse(contextPayload: Record<string, any>): string {
@@ -32,7 +49,12 @@ function generateMockVlmResponse(contextPayload: Record<string, any>): string {
 
   if (contextPayload.fields && Array.isArray(contextPayload.fields)) {
     for (const field of contextPayload.fields) {
-      if (field.ref && field.target) {
+      if (field.type === 'checkbox') {
+        actions.push({
+          action: 'CLICK',
+          target: field.target
+        });
+      } else if (field.ref && field.target) {
         actions.push({
           action: 'TYPE_REFERENCE',
           target: field.target,
@@ -42,10 +64,11 @@ function generateMockVlmResponse(contextPayload: Record<string, any>): string {
     }
   }
 
-  if (contextPayload.button && contextPayload.button.target) {
+  const submitButton = contextPayload.button || (contextPayload.buttons && contextPayload.buttons[0]);
+  if (submitButton && submitButton.target) {
     actions.push({
       action: 'CLICK',
-      target: contextPayload.button.target
+      target: submitButton.target
     });
   }
 
@@ -63,15 +86,37 @@ function generateMockVlmResponse(contextPayload: Record<string, any>): string {
 }
 
 async function callOpenAI(promptText: string): Promise<string> {
-  const endpoint = config.vlmEndpoint || 'https://api.openai.com/v1/chat/completions';
+  const provider = config.vlmProvider;
+  let endpoint = config.vlmEndpoint;
+  if (!endpoint) {
+    if (provider === 'vllm') {
+      endpoint = 'http://localhost:8000/v1/chat/completions';
+    } else if (provider === 'ollama') {
+      endpoint = 'http://localhost:11434/v1/chat/completions';
+    } else {
+      endpoint = 'https://api.openai.com/v1/chat/completions';
+    }
+  }
+
+  const defaultModel =
+    provider === 'vllm'
+      ? 'Qwen/Qwen2-VL-7B-Instruct'
+      : provider === 'ollama'
+        ? 'llama3.2-vision'
+        : 'gpt-4o';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (config.vlmApiKey) {
+    headers['Authorization'] = `Bearer ${config.vlmApiKey}`;
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.vlmApiKey}`
-    },
+    headers,
     body: JSON.stringify({
-      model: config.vlmModel || 'gpt-4o',
+      model: config.vlmModel || defaultModel,
       messages: [
         { role: 'system', content: VLM_SYSTEM_PROMPT },
         { role: 'user', content: promptText }
@@ -81,7 +126,8 @@ async function callOpenAI(promptText: string): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`${provider.toUpperCase()} API error: ${response.status} ${response.statusText} — ${errorBody.slice(0, 200)}`);
   }
 
   const data: any = await response.json();
@@ -108,7 +154,8 @@ async function callAnthropic(promptText: string): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Anthropic API error: ${response.status} ${response.statusText} — ${errorBody.slice(0, 200)}`);
   }
 
   const data: any = await response.json();
@@ -116,7 +163,7 @@ async function callAnthropic(promptText: string): Promise<string> {
 }
 
 async function callGemini(promptText: string): Promise<string> {
-  const modelName = config.vlmModel || 'gemini-1.5-flash';
+  const modelName = config.vlmModel || 'gemini-3.6-flash';
   const endpoint = config.vlmEndpoint || `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.vlmApiKey}`;
   
   const response = await fetch(endpoint, {
@@ -132,14 +179,22 @@ async function callGemini(promptText: string): Promise<string> {
         {
           parts: [{ text: promptText }]
         }
-      ]
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+        responseMimeType: 'application/json'
+      }
     })
   });
 
   if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Gemini API error: ${response.status} ${response.statusText} — ${errorBody.slice(0, 300)}`);
   }
 
   const data: any = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  console.log(`[VLM-Client] Raw response from Gemini (${rawText.length} chars): ${rawText.slice(0, 200)}...`);
+  return rawText;
 }

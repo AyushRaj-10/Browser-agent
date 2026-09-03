@@ -4,7 +4,9 @@ import { z } from 'zod';
 export const SanitizedFieldSchema = z.object({
   ref: z.string(),
   type: z.string(),
-  target: z.string()
+  target: z.string(),
+  label: z.string().optional(),
+  sensitive: z.boolean().optional()
 });
 
 export const SanitizedButtonSchema = z.object({
@@ -14,9 +16,14 @@ export const SanitizedButtonSchema = z.object({
 
 export const SanitizedContextSchema = z.object({
   user_task: z.string(),
+  page_title: z.string().optional(),
+  page_url: z.string().optional(),
   fields: z.array(SanitizedFieldSchema).optional(),
+  buttons: z.array(SanitizedButtonSchema).optional(),
+  // Backward-compat: single button
   button: SanitizedButtonSchema.optional()
 });
+
 
 export type SanitizedContext = z.infer<typeof SanitizedContextSchema>;
 
@@ -25,6 +32,7 @@ export const ALLOWED_ACTIONS = [
   'CLICK',
   'SCROLL',
   'SELECT',
+  'TYPE',
   'TYPE_REFERENCE',
   'NAVIGATE',
   'WAIT'
@@ -33,7 +41,8 @@ export const ALLOWED_ACTIONS = [
 export const ActionItemSchema = z.object({
   action: z.enum(ALLOWED_ACTIONS),
   target: z.string(),
-  reference: z.string().optional()
+  reference: z.string().optional(),
+  value: z.string().optional()
 });
 
 export const StructuredActionResponseSchema = z.object({
@@ -83,6 +92,16 @@ export function validateAndSanitizeVlmResponse(
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   }
 
+  // Extract substring between first { and last } if surrounded by prose or backticks
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+
+  // Clean trailing commas before closing brackets/braces (common LLM artifact)
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+
   // 2. Defense in depth: Run PII regex check across raw cleaned string before parsing
   for (const pattern of PII_PATTERNS) {
     if (pattern.test(cleaned)) {
@@ -98,7 +117,8 @@ export function validateAndSanitizeVlmResponse(
   let parsed: any;
   try {
     parsed = JSON.parse(cleaned);
-  } catch (err) {
+  } catch (err: any) {
+    console.warn(`[JSON Parse Error] ${err?.message}. Raw input (${rawOutput.length} chars): "${rawOutput}"`);
     return { valid: false, response: EMPTY_ACTION_FALLBACK, errorReason: 'Malformed JSON output' };
   }
 
@@ -133,6 +153,11 @@ export function validateAndSanitizeVlmResponse(
   }
   if (context.button?.target) {
     allowedTargets.add(context.button.target);
+  }
+  if (context.buttons) {
+    for (const b of context.buttons) {
+      allowedTargets.add(b.target);
+    }
   }
 
   // 5. Action checks: Target existence & TYPE_REFERENCE token validity

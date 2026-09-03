@@ -1,5 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import { config } from './config.js';
 import healthRouter from './routes/health.js';
 import reasonRouter from './routes/reason.js';
@@ -38,6 +40,14 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Mount demo page static hosting (robust across running from root or backend folder)
+const possibleDemoPaths = [
+  path.resolve(process.cwd(), 'demo'),
+  path.resolve(process.cwd(), '../demo'),
+];
+const demoPath = possibleDemoPaths.find((p) => fs.existsSync(p)) || possibleDemoPaths[0];
+app.use('/demo', express.static(demoPath));
+
 // Mount routes
 app.use('/api', healthRouter);
 app.use('/api', authMiddleware, reasonRouter);
@@ -46,6 +56,7 @@ app.use('/api', authMiddleware, reasonRouter);
 if (process.env.NODE_ENV !== 'test') {
   app.listen(config.port, () => {
     console.log(`[Backend Service] Running on http://localhost:${config.port}`);
+    console.log(`[Backend Service] VLM Provider: ${config.vlmProvider} | Model: ${config.vlmModel} | API Key: ${config.vlmApiKey ? '✓ configured' : '✗ missing (mock mode)'}`);
   });
 }
 
