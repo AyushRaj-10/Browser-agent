@@ -5,20 +5,19 @@ import type {
   AskAIResult,
   UserProtectedFieldIds,
 } from "../shared/messages";
+import {
+  getAllVaultSecrets,
+  saveVaultSecret,
+  type VaultSecretItem,
+} from "../shared/idb-vault";
 
 type ActiveTab = "agent" | "privacy" | "vault";
 
-interface StoredVaultSecret {
-  ref: string;
-  category: string;
-  label: string;
-  decryptedValue: string;
-  encryptedCiphertext: string;
-  iv: string;
-}
+type StoredVaultSecret = VaultSecretItem;
 
 const INITIAL_VAULT: StoredVaultSecret[] = [
   {
+    id: "sec_name_1",
     ref: "NAME_1",
     category: "NAME",
     label: "Full Legal Name",
@@ -27,6 +26,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "q8F2/K10Lx==",
   },
   {
+    id: "sec_first_name_1",
     ref: "FIRST_NAME_1",
     category: "NAME",
     label: "First Name",
@@ -35,6 +35,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "a1B2/C34Dx==",
   },
   {
+    id: "sec_last_name_1",
     ref: "LAST_NAME_1",
     category: "NAME",
     label: "Last Name",
@@ -43,6 +44,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "e5F6/G78Hx==",
   },
   {
+    id: "sec_email_1",
     ref: "EMAIL_1",
     category: "EMAIL",
     label: "Registered Email",
@@ -51,6 +53,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "m9P3/Z88Ka==",
   },
   {
+    id: "sec_phone_1",
     ref: "PHONE_1",
     category: "PHONE",
     label: "Primary Mobile",
@@ -59,6 +62,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "k7A1/L44Bx==",
   },
   {
+    id: "sec_dob_1",
     ref: "DOB_1",
     category: "DOB",
     label: "Date of Birth",
@@ -67,6 +71,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "d3E4/R56Ty==",
   },
   {
+    id: "sec_pan_1",
     ref: "PAN_1",
     category: "GOVID",
     label: "PAN Number",
@@ -75,6 +80,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "p1A2/N34Zx==",
   },
   {
+    id: "sec_aadhaar_1",
     ref: "AADHAAR_1",
     category: "GOVID",
     label: "Aadhaar Number",
@@ -83,6 +89,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "u5I6/O78Px==",
   },
   {
+    id: "sec_address_1",
     ref: "ADDRESS_1",
     category: "ADDRESS",
     label: "Address Line 1",
@@ -91,6 +98,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "s1D2/F34Gx==",
   },
   {
+    id: "sec_city_1",
     ref: "CITY_1",
     category: "ADDRESS",
     label: "City",
@@ -99,6 +107,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "c1I2/T34Yx==",
   },
   {
+    id: "sec_state_1",
     ref: "STATE_1",
     category: "ADDRESS",
     label: "State",
@@ -107,6 +116,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "s9T8/A76Qx==",
   },
   {
+    id: "sec_pincode_1",
     ref: "PINCODE_1",
     category: "ADDRESS",
     label: "PIN Code",
@@ -115,6 +125,7 @@ const INITIAL_VAULT: StoredVaultSecret[] = [
     iv: "z1X2/C34Vx==",
   },
   {
+    id: "sec_policy_1",
     ref: "POLICY_1",
     category: "POLICY",
     label: "Health Policy Number",
@@ -184,10 +195,14 @@ export default function App() {
 
         if (tab?.id === undefined) return;
 
-        // Restore custom vault if stored
-        const storedVault = await browser.storage.local.get("browserAgent.customVault");
-        if (storedVault["browserAgent.customVault"]) {
-          setVaultSecrets(storedVault["browserAgent.customVault"] as StoredVaultSecret[]);
+        // Restore vault from real IndexedDB store (BrowserAgent_SecretStore_v1)
+        try {
+          const idbVault = await getAllVaultSecrets();
+          if (idbVault && idbVault.length > 0) {
+            setVaultSecrets(idbVault);
+          }
+        } catch (e) {
+          console.warn("[Popup] Could not load from IndexedDB:", e);
         }
 
         const storageKey = getStorageKey(tab.id);
@@ -248,21 +263,17 @@ export default function App() {
   }
 
   async function handleSaveEdit(ref: string) {
-    const updated = vaultSecrets.map((s) => {
-      if (s.ref === ref) {
-        const fakeCipher = btoa(editValue).slice(0, 28) + "...";
-        return {
-          ...s,
-          decryptedValue: editValue,
-          encryptedCiphertext: fakeCipher,
-        };
-      }
-      return s;
-    });
+    const target = vaultSecrets.find((s) => s.ref === ref);
+    if (!target) return;
 
-    setVaultSecrets(updated);
-    setEditingRef(null);
-    await browser.storage.local.set({ "browserAgent.customVault": updated });
+    try {
+      await saveVaultSecret(ref, target.category, target.label, editValue);
+      const updated = await getAllVaultSecrets();
+      setVaultSecrets(updated);
+      setEditingRef(null);
+    } catch (err) {
+      console.error("Failed to save secret to IndexedDB:", err);
+    }
   }
 
   return (
@@ -489,7 +500,15 @@ export default function App() {
       {activeTab === "vault" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={{ background: "#eef2ff", border: "1px solid #c7d2fe", padding: "8px 10px", borderRadius: "6px", fontSize: "11px", color: "#3730a3" }}>
-            🔑 <strong>Local IndexedDB Store (`BrowserAgentSecrets_v1`):</strong> Encrypted on disk. You can edit values to test dynamic resolution!
+            🔐 <strong>Native IndexedDB:</strong> Database <code>BrowserAgent_SecretStore_v1</code> (Web Crypto 256-bit AES-GCM).
+          </div>
+
+          <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", padding: "8px 10px", borderRadius: "6px", fontSize: "10px", color: "#475569", lineHeight: "1.4" }}>
+            <strong>🔍 Where to find in DevTools:</strong><br />
+            1. Right-click inside this popup ➔ <strong>Inspect</strong><br />
+            2. Go to <strong>Application</strong> tab ➔ <strong>Storage</strong> ➔ <strong>IndexedDB</strong><br />
+            3. Click <strong>BrowserAgent_SecretStore_v1</strong> ➔ <strong>secrets</strong><br />
+            <em>Values are encrypted locally on disk before storage.</em>
           </div>
 
           <div style={{ maxHeight: "280px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>

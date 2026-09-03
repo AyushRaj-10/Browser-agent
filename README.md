@@ -399,7 +399,74 @@ privacy-browser-agent/
 ├── evaluation/
 └── tests/
 
-15. Important Rules
+---
+
+## 15. Quick Start & Production Setup Guide (From Fresh Clone)
+
+### 15.1 Prerequisites
+- **Node.js**: Version 18.x or higher (`node -v`)
+- **npm**: Version 9.x or higher (`npm -v`)
+- **Browser**: Google Chrome, Microsoft Edge, or any Chromium-based browser
+
+### 15.2 Fresh Clone Installation
+Run the automated setup from the repository root:
+```bash
+git clone <repo-url>
+cd Browser-agent
+
+# Install dependencies across all modules
+npm run setup
+```
+*(Or install modules manually: `cd backend && npm install`, `cd ../extension && npm install`, `cd ../security && npm install`, `cd ../privacy && npm install`, `cd ../vision && npm install`, `cd ../evaluation && npm install`)*
+
+### 15.3 Build the Extension
+```bash
+cd extension
+npm run build
+```
+This outputs the production-ready Manifest V3 extension bundle to `extension/dist/chrome/`.
+
+### 15.4 Load Extension into Google Chrome
+1. Open Google Chrome and navigate to `chrome://extensions`.
+2. Toggle **Developer mode** in the top-right corner to **ON**.
+3. Click the **Load unpacked** button in the top-left corner.
+4. Select the directory:
+   `<repo-root>/extension/dist/chrome`
+5. Pin the **Browser Agent** extension to your toolbar.
+
+### 15.5 Start the Backend & Live Demo Pages
+```bash
+cd backend
+npm run dev
+```
+The server will start at `http://localhost:3000`. It serves:
+- **Reasoning API**: `POST http://localhost:3000/api/reason`
+- **Banking Demo**: `http://localhost:3000/demo/bank-account.html`
+- **Insurance Demo**: `http://localhost:3000/demo/insurance-claim.html`
+
+### 15.6 Inspecting Native IndexedDB Vault (Application Storage)
+1. **On the Demo Webpage**:
+   - Open `http://localhost:3000/demo/bank-account.html`.
+   - Press `F12` to open Chrome DevTools.
+   - Click the **Application** tab ➔ Under **Storage**, expand **IndexedDB** ➔ Click **`BrowserAgent_SecretStore_v1`** ➔ **`secrets`**.
+   - You will see the local encrypted records with `ciphertext` and `iv` (Web Crypto 256-bit AES-GCM).
+2. **In the Extension Popup**:
+   - Click the **Browser Agent** extension icon in your Chrome toolbar.
+   - Switch to the **🔒 IndexedDB Vault** tab to view decrypted labels, ciphertext previews, and dynamically edit secrets.
+   - Right-click the popup and select **Inspect** to see the extension's own isolated IndexedDB storage.
+
+### 15.7 Running Test Suites Across All Modules
+```bash
+cd backend && npm test        # 12 tests (validation, fast-path, reason API)
+cd ../security && npm test    # 40 tests (AES-GCM, IDB vault, resolver)
+cd ../privacy && npm test     # 23 tests (PII classifier, sanitization)
+cd ../vision && npm test      # 18 tests (ONNX manager, OCR, pipeline)
+cd ../evaluation && npm test  # 1 test (10-stage end-to-end pipeline)
+```
+
+---
+
+## 16. Important Rules
 
 Raw sensitive information must not be transmitted to the server unnecessarily.
 

@@ -9,6 +9,16 @@ import type {
   PageAnalysis,
   UserProtectedFieldIds,
 } from "../shared/messages";
+import {
+  initIndexedDBVault,
+  getAllVaultSecrets,
+  resolveVaultReference,
+} from "../shared/idb-vault";
+
+// Ensure local IndexedDB database and AES-GCM encryption vault are initialized on service worker boot
+void initIndexedDBVault().then(() => {
+  console.log("%c[IndexedDB-Vault] 🗄️ Database 'BrowserAgent_SecretStore_v1' active in background service worker.", "color: #10b981; font-weight: bold;");
+});
 
 const BACKEND_URL = "http://localhost:3000/api/reason";
 const BACKEND_API_KEY = "sih-secret-key-2026";
@@ -106,22 +116,21 @@ function resolveSecret(ref: string, secrets: Record<string, string>): string {
 }
 
 /**
- * Loads the on-device secret store. Reads from browser.storage.local first
- * (user-editable vault from the popup), falling back to hardcoded demo defaults.
+ * Loads the on-device secret store from IndexedDB (BrowserAgent_SecretStore_v1)
+ * Decrypts values on-device using Web Crypto AES-GCM (256-bit).
  */
 async function loadOnDeviceSecrets(): Promise<Record<string, string>> {
   try {
-    const stored = await browser.storage.local.get("browserAgent.customVault");
-    const vault = stored["browserAgent.customVault"] as Array<{ ref: string; decryptedValue: string }> | undefined;
-    if (vault && Array.isArray(vault) && vault.length > 0) {
-      const secrets: Record<string, string> = { ...DEFAULT_SECRETS };
+    const vault = await getAllVaultSecrets();
+    if (vault && vault.length > 0) {
+      const secrets: Record<string, string> = {};
       for (const entry of vault) {
         secrets[entry.ref] = entry.decryptedValue;
       }
       return secrets;
     }
-  } catch {
-    // Fall through to defaults
+  } catch (err) {
+    console.warn("[IndexedDB-Vault] Fallback to default secrets:", err);
   }
   return { ...DEFAULT_SECRETS };
 }
@@ -403,9 +412,12 @@ async function handleAskAI(
           // Execute each approved action sequentially against the live DOM
           for (const act of data.actions) {
             if (act.action === "TYPE_REFERENCE") {
-              const localSecret = resolveSecret(act.reference, secrets);
+              let localSecret = await resolveVaultReference(act.reference);
+              if (!localSecret) {
+                localSecret = resolveSecret(act.reference, secrets);
+              }
               if (localSecret) {
-                console.log(`%c[Reference-Resolver] 🔑 Resolving ${act.reference} on-device (IndexedDB AES-GCM) ➔ value loaded`, "color: #2563eb;");
+                console.log(`%c[Reference-Resolver] 🔑 Resolved ${act.reference} on-device (IndexedDB AES-GCM) ➔ "${localSecret.slice(0, 3)}***"`, "color: #2563eb; font-weight: bold;");
                 await executeDomActionInTab(tabId, "TYPE", act.target, localSecret);
                 executedCount++;
               } else {

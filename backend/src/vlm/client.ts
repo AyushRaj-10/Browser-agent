@@ -8,16 +8,18 @@ export interface VlmMessage {
 
 export async function callVlm(contextPayload: Record<string, any>): Promise<string> {
   const provider = config.vlmProvider;
+  const isLocalProvider = provider === 'vllm' || provider === 'ollama' || provider === 'local';
+  const hasAuthOrLocal = Boolean(config.vlmApiKey) || isLocalProvider;
 
-  // Mock mode for local development, unit tests, and when no API key is set
-  if (provider === 'mock' || !config.vlmApiKey || config.nodeEnv === 'test') {
+  // Mock mode for local development, unit tests, or when no auth and not a local provider
+  if (provider === 'mock' || !hasAuthOrLocal || config.nodeEnv === 'test') {
     console.log('[VLM-Client] Using mock mode (no API key, VLM_PROVIDER=mock, or NODE_ENV=test)');
     return generateMockVlmResponse(contextPayload);
   }
 
   const promptText = `User Task: ${contextPayload.user_task}\nPage Context: ${JSON.stringify(contextPayload)}`;
 
-  console.log(`[VLM-Client] Calling ${provider} (model: ${config.vlmModel})...`);
+  console.log(`[VLM-Client] Calling ${provider} (model: ${config.vlmModel || (provider === 'vllm' ? 'Qwen/Qwen2-VL-7B-Instruct' : provider === 'ollama' ? 'llama3.2-vision' : 'default')})...`);
   const startTime = Date.now();
 
   try {
@@ -84,15 +86,37 @@ function generateMockVlmResponse(contextPayload: Record<string, any>): string {
 }
 
 async function callOpenAI(promptText: string): Promise<string> {
-  const endpoint = config.vlmEndpoint || 'https://api.openai.com/v1/chat/completions';
+  const provider = config.vlmProvider;
+  let endpoint = config.vlmEndpoint;
+  if (!endpoint) {
+    if (provider === 'vllm') {
+      endpoint = 'http://localhost:8000/v1/chat/completions';
+    } else if (provider === 'ollama') {
+      endpoint = 'http://localhost:11434/v1/chat/completions';
+    } else {
+      endpoint = 'https://api.openai.com/v1/chat/completions';
+    }
+  }
+
+  const defaultModel =
+    provider === 'vllm'
+      ? 'Qwen/Qwen2-VL-7B-Instruct'
+      : provider === 'ollama'
+        ? 'llama3.2-vision'
+        : 'gpt-4o';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (config.vlmApiKey) {
+    headers['Authorization'] = `Bearer ${config.vlmApiKey}`;
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.vlmApiKey}`
-    },
+    headers,
     body: JSON.stringify({
-      model: config.vlmModel || 'gpt-4o',
+      model: config.vlmModel || defaultModel,
       messages: [
         { role: 'system', content: VLM_SYSTEM_PROMPT },
         { role: 'user', content: promptText }
@@ -103,7 +127,7 @@ async function callOpenAI(promptText: string): Promise<string> {
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '');
-    throw new Error(`OpenAI API error: ${response.status} ${response.statusText} — ${errorBody.slice(0, 200)}`);
+    throw new Error(`${provider.toUpperCase()} API error: ${response.status} ${response.statusText} — ${errorBody.slice(0, 200)}`);
   }
 
   const data: any = await response.json();
