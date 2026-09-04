@@ -20,7 +20,7 @@ void initIndexedDBVault().then(() => {
   console.log("%c[IndexedDB-Vault] 🗄️ Database 'BrowserAgent_SecretStore_v1' active in background service worker.", "color: #10b981; font-weight: bold;");
 });
 
-const BACKEND_URL = "http://localhost:3000/api/reason";
+const BACKEND_URL = "https://browser-agent-xdfu.onrender.com/api/reason";
 const BACKEND_API_KEY = "sih-secret-key-2026";
 
 /**
