@@ -5,7 +5,7 @@ export function createManifest(isFirefox: boolean) {
   return defineManifest({
     manifest_version: 3,
 
-    name: "Browser Agent — Privacy-Preserving Vision Agent",
+    name: "Browser Agent — Privacy Vision Agent",
 
     description:
       "On-device visual perception with local PII redaction before any data leaves the browser.",
@@ -55,6 +55,9 @@ export function createManifest(isFirefox: boolean) {
         gecko: {
           id: "browser-agent@sih2026.local",
           strict_min_version: "115.0",
+          data_collection_permissions: {
+            required: ["none"],
+          },
         },
       },
     }),
