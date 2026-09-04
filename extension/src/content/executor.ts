@@ -83,8 +83,8 @@ export async function executeDomAction(
 
   // Resilient fallback: If dynamic page ID changed, lookup by input/button semantics
   if (!element || !element.isConnected) {
-    if (verb === "TYPE") {
-      const targetLower = target.toLowerCase();
+    const targetLower = target.toLowerCase();
+    if (verb === "TYPE" || verb === "SELECT") {
       if (targetLower.includes("password") || targetLower.includes("pass") || targetLower.includes("pwd")) {
         element = document.querySelector<HTMLElement>(
           "input[type='password'], input[name*='password'], input[id*='password'], input[placeholder*='password']"
@@ -93,19 +93,41 @@ export async function executeDomAction(
         element = document.querySelector<HTMLElement>(
           "input[type='email'], input[name='identifier'], #identifierId, input[name*='email'], input[placeholder*='email']"
         );
-      } else {
+      } else if (targetLower.includes("phone") || targetLower.includes("mobile") || targetLower.includes("tel")) {
         element = document.querySelector<HTMLElement>(
-          "input:not([type='hidden']):not([disabled])"
+          "input[type='tel'], input[name*='phone'], input[name*='mobile'], input[id*='phone'], input[id*='mobile']"
         );
+      } else if (targetLower.includes("pan")) {
+        element = document.querySelector<HTMLElement>("input[name*='pan'], input[id*='pan']");
+      } else if (targetLower.includes("aadhaar") || targetLower.includes("aadhar")) {
+        element = document.querySelector<HTMLElement>("input[name*='aadhaar'], input[id*='aadhaar']");
+      } else if (targetLower.includes("dob") || targetLower.includes("birth")) {
+        element = document.querySelector<HTMLElement>("input[type='date'], input[name*='dob'], input[id*='dob']");
+      } else if (targetLower.includes("city")) {
+        element = document.querySelector<HTMLElement>("input[name*='city'], input[id*='city']");
+      } else if (targetLower.includes("state")) {
+        element = document.querySelector<HTMLElement>("select[name*='state'], select[id*='state'], input[name*='state']");
+      } else if (targetLower.includes("pincode") || targetLower.includes("zip")) {
+        element = document.querySelector<HTMLElement>("input[name*='pincode'], input[name*='zip'], input[id*='pincode']");
+      } else if (targetLower.includes("name")) {
+        element = document.querySelector<HTMLElement>("input[name*='name'], input[id*='name']");
+      } else {
+        try {
+          element = document.querySelector<HTMLElement>(
+            `input[name*="${target}"], input[id*="${target}"], textarea[name*="${target}"], select[name*="${target}"]`
+          );
+        } catch {}
       }
     } else if (verb === "CLICK") {
-      element = document.querySelector<HTMLElement>(
-        "button[type='submit'], button.btn-submit, #identifierNext button, #identifierNext, [role='button'][id*='Next'], button:not([disabled])"
-      );
+      if (targetLower.includes("agree") || targetLower.includes("term") || targetLower.includes("check")) {
+        element = document.querySelector<HTMLElement>("input[type='checkbox']");
+      } else {
+        element = document.querySelector<HTMLElement>(
+          "button[type='submit'], button.btn-submit, #identifierNext button, #identifierNext, [role='button'][id*='Next'], button:not([disabled])"
+        );
+      }
     }
   }
-
-
 
   if (!element || !element.isConnected) {
     return {
@@ -116,7 +138,6 @@ export async function executeDomAction(
     };
   }
 
-
   try {
     element.scrollIntoView({ behavior: "smooth", block: "center" });
 
@@ -124,10 +145,11 @@ export async function executeDomAction(
       case "CLICK": {
         element.focus();
 
-        if (element instanceof HTMLInputElement && element.type === "checkbox") {
+        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
           element.checked = true;
           element.dispatchEvent(new Event("input", { bubbles: true }));
           element.dispatchEvent(new Event("change", { bubbles: true }));
+          element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
           return { success: true, action: verb, target };
         }
 
@@ -139,19 +161,17 @@ export async function executeDomAction(
           element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, view: window }));
         } catch {}
         element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
-        element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
         element.click();
 
+        // Native click triggers submit; fallback requestSubmit if not natively submitted
         const form = element.closest("form");
         if (form && (element.getAttribute("type") === "submit" || element.id.includes("submit") || element.id.includes("btn") || element.classList.contains("btn-submit"))) {
           try {
             if (typeof form.requestSubmit === "function") {
               form.requestSubmit(element instanceof HTMLButtonElement ? element : undefined);
-            } else {
-              form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
             }
           } catch {
-            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            // Already submitted or handled
           }
         }
 
@@ -161,6 +181,13 @@ export async function executeDomAction(
       case "TYPE": {
         element.focus();
         const textToType = value || "";
+
+        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+          element.checked = true;
+          element.dispatchEvent(new Event("input", { bubbles: true }));
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+          return { success: true, action: verb, target };
+        }
 
         if (element instanceof HTMLSelectElement) {
           element.value = textToType;

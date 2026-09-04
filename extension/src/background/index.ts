@@ -71,6 +71,11 @@ function resolveSecret(ref: string, secrets: Record<string, string>): string {
     const fn = secrets["FIRST_NAME_1"] || secrets["FIRST_NAME"] || "";
     const ln = secrets["LAST_NAME_1"] || secrets["LAST_NAME"] || "";
     if (fn || ln) return `${fn} ${ln}`.trim();
+    if (secrets["NAME_1"]) return secrets["NAME_1"];
+  }
+
+  if (ref.startsWith("EMAIL")) {
+    return secrets["EMAIL_1"] || secrets["EMAIL"] || "";
   }
 
   if (ref.startsWith("PAN")) {
@@ -111,6 +116,10 @@ function resolveSecret(ref: string, secrets: Record<string, string>): string {
 
   if (ref.startsWith("POLICY")) {
     return secrets["POLICY_1"] || "";
+  }
+
+  if (ref.startsWith("AMOUNT") || ref.startsWith("SALARY") || ref.startsWith("INCOME")) {
+    return secrets["AMOUNT_1"] || secrets["AMOUNT"] || "";
   }
 
   if (ref.startsWith("PASSWORD") || ref.startsWith("PASS")) {
@@ -176,10 +185,36 @@ function waitForTabComplete(tabId: number, timeoutMs = 12000): Promise<void> {
   });
 }
 
+async function ensureContentScriptInTab(tabId: number): Promise<void> {
+  try {
+    const res = (await browser.tabs.sendMessage(tabId, { type: "PING" })) as any;
+    if (res && res.type === "PONG") {
+      return;
+    }
+  } catch {
+    // Content script not responding in tab; dynamically inject it
+  }
+
+  try {
+    const manifest = browser.runtime.getManifest();
+    const scripts = manifest.content_scripts?.[0]?.js || [];
+    for (const script of scripts) {
+      await browser.scripting.executeScript({
+        target: { tabId },
+        files: [script],
+      }).catch(() => {});
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  } catch (err) {
+    console.warn(`[Content-Injector] Dynamic injection notice for tab ${tabId}:`, err);
+  }
+}
+
 async function forwardToActiveTab(
   message: ExtensionMessage
 ): Promise<void> {
   const tabId = await getActiveTabId();
+  await ensureContentScriptInTab(tabId);
   await browser.tabs.sendMessage(tabId, message);
 }
 
@@ -188,6 +223,7 @@ async function analyzeActivePage(): Promise<{
   analysis: PageAnalysis;
 }> {
   const tabId = await getActiveTabId();
+  await ensureContentScriptInTab(tabId);
 
   const response = (await browser.tabs.sendMessage(tabId, {
     type: "ANALYZE_PAGE",
@@ -208,6 +244,8 @@ async function executeDomActionInTab(
   target: string,
   value?: string
 ): Promise<ExecuteActionResponse> {
+  await ensureContentScriptInTab(tabId);
+
   const message: ExecuteActionRequest = {
     type: "EXECUTE_ACTION",
     action,
@@ -475,22 +513,20 @@ async function handleAskAI(
 
 
     // Smart link discovery: if user wants to sign up or log in on ANY website,
-    // check URL first — if not already on signup/login page, find and click the right link.
+    // check if current page already has interactive form fields first!
     if (!navigateTargetUrl && !currentUrl.startsWith("chrome://") && !currentUrl.startsWith("about:")) {
       const isSignupIntent = /sign.*up|register|join|create.*account|new.*seeker|begin.*journey/i.test(taskLower);
       const isLoginIntent = !isSignupIntent && /log.*in|sign.*in/i.test(taskLower);
 
       if (isSignupIntent || isLoginIntent) {
-        // Check URL: are we already on a signup/login page?
-        const alreadyOnTarget = isSignupIntent
-          ? /signup|register|join|create-account/i.test(currentUrl)
-          : /login|signin|sign-in/i.test(currentUrl);
+        // Pre-check current page for interactive form fields
+        const preCheck = await analyzeActivePage().catch(() => null);
+        const hasFormFields = preCheck?.analysis?.fields?.some(
+          (f: any) => f.tag === "input" || f.tag === "select" || f.tag === "textarea"
+        );
 
-        if (!alreadyOnTarget) {
-          console.log(`%c[Agent-Navigator] 🔍 Not on ${isSignupIntent ? "signup" : "login"} page yet. Scanning current page for navigation links...`, "color: #0284c7;");
-          
-          // Scan the current page for matching links
-          const preCheck = await analyzeActivePage().catch(() => null);
+        // If the page already has form fields, we are ALREADY on the form! Don't navigate away!
+        if (!hasFormFields) {
           const pageLinks = preCheck?.analysis?.fields?.filter((f: any) => f.tag === "a") || [];
 
           let matchedLink: string | null = null;
@@ -513,14 +549,6 @@ async function handleAskAI(
             await executeDomActionInTab(tabId, "CLICK", matchedLink);
             await waitForTabComplete(tabId);
             await new Promise((r) => setTimeout(r, 2000));
-          } else {
-            // Fallback: guess common URL pattern
-            try {
-              const urlObj = new URL(currentUrl);
-              navigateTargetUrl = isSignupIntent
-                ? `${urlObj.origin}/register`
-                : `${urlObj.origin}/login`;
-            } catch {}
           }
         }
       }
@@ -640,8 +668,11 @@ async function handleAskAI(
           if (f.type === "checkbox") {
             await executeDomActionInTab(tabId, "CLICK", f.target);
             executedCount++;
-          } else if (f.sensitive) {
-            const val = resolveSecret(f.ref, secrets);
+          } else {
+            let val = await resolveVaultReference(f.ref);
+            if (!val) {
+              val = resolveSecret(f.ref, secrets);
+            }
             if (val) {
               await executeDomActionInTab(tabId, "TYPE", f.target, val);
               executedCount++;
@@ -661,8 +692,11 @@ async function handleAskAI(
         if (f.type === "checkbox") {
           await executeDomActionInTab(tabId, "CLICK", f.target);
           executedCount++;
-        } else if (f.sensitive) {
-          const val = resolveSecret(f.ref, secrets);
+        } else {
+          let val = await resolveVaultReference(f.ref);
+          if (!val) {
+            val = resolveSecret(f.ref, secrets);
+          }
           if (val) {
             await executeDomActionInTab(tabId, "TYPE", f.target, val);
             executedCount++;

@@ -46,7 +46,7 @@ export function createManifest(isFirefox: boolean) {
       },
     ],
 
-    permissions: ["activeTab", "scripting", "storage"],
+    permissions: ["activeTab", "scripting", "storage", "tabs"],
 
     host_permissions: ["<all_urls>"],
 

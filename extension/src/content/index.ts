@@ -19,6 +19,10 @@ import type {
 // return the response directly instead of Chrome's raw sendResponse callback.
 browser.runtime.onMessage.addListener(
   (message: ExtensionMessage) => {
+    if ((message as any).type === "PING") {
+      return Promise.resolve({ type: "PONG" });
+    }
+
     if (message.type === "ANALYZE_PAGE") {
       const analysis = analyzeDom();
 

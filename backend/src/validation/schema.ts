@@ -162,6 +162,10 @@ export function validateAndSanitizeVlmResponse(
 
   // 5. Action checks: Target existence & TYPE_REFERENCE token validity
   for (const act of actions) {
+    if (act.action === 'NAVIGATE' || act.action === 'WAIT') {
+      continue;
+    }
+
     // Target check
     if (!allowedTargets.has(act.target)) {
       return {

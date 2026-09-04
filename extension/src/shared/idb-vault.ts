@@ -352,6 +352,12 @@ export async function resolveVaultReference(ref: string): Promise<string> {
         return parts.length > 1 ? parts.slice(1).join(" ") : "";
       }
     }
+    if (normalizedRef.startsWith("NAME")) {
+      return await resolveVaultReference("NAME_1");
+    }
+    if (normalizedRef.startsWith("EMAIL")) {
+      return await resolveVaultReference("EMAIL_1");
+    }
     if (normalizedRef.startsWith("PAN")) {
       return await resolveVaultReference("PAN_1");
     }
@@ -365,8 +371,29 @@ export async function resolveVaultReference(ref: string): Promise<string> {
     if (normalizedRef.startsWith("PHONE") || normalizedRef.startsWith("MOBILE")) {
       return await resolveVaultReference("PHONE_1");
     }
+    if (normalizedRef.startsWith("DOB") || normalizedRef.startsWith("BIRTH")) {
+      return await resolveVaultReference("DOB_1");
+    }
+    if (normalizedRef.startsWith("ADDRESS")) {
+      return await resolveVaultReference("ADDRESS_1");
+    }
+    if (normalizedRef.startsWith("CITY")) {
+      return await resolveVaultReference("CITY_1");
+    }
+    if (normalizedRef.startsWith("STATE")) {
+      return await resolveVaultReference("STATE_1");
+    }
+    if (normalizedRef.startsWith("PINCODE") || normalizedRef.startsWith("ZIP")) {
+      return await resolveVaultReference("PINCODE_1");
+    }
+    if (normalizedRef.startsWith("PASSWORD") || normalizedRef.startsWith("PASS")) {
+      return await resolveVaultReference("PASSWORD_1");
+    }
     if (normalizedRef.startsWith("POLICY")) {
       return await resolveVaultReference("POLICY_1");
+    }
+    if (normalizedRef.startsWith("AMOUNT") || normalizedRef.startsWith("SALARY") || normalizedRef.startsWith("INCOME")) {
+      return await resolveVaultReference("AMOUNT_1");
     }
   } catch (err) {
     console.error("[IndexedDB-Vault] Error resolving reference:", err);

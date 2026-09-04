@@ -403,7 +403,7 @@ export function analyzeDom(): PageAnalysis {
         tag: el.tagName.toLowerCase(),
         role: el.closest("nav, header, [role='navigation']")
           ? "nav-item"
-          : (el.getAttribute("role") || undefined),
+          : (el.getAttribute("role") || null),
         name: el.getAttribute("name"),
         label,
         type,
