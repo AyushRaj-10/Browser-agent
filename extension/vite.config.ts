@@ -9,7 +9,7 @@ function cleanFirefoxManifest() {
   return {
     name: "clean-firefox-manifest",
     closeBundle() {
-      const manifestPath = path.resolve(__dirname, "dist/firefox/manifest.json");
+      const manifestPath = path.resolve(process.cwd(), "dist/firefox/manifest.json");
       if (fs.existsSync(manifestPath)) {
         try {
           const content = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
